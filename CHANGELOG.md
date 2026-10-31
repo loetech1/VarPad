@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2 — Variables inside calculations
+
+- Quoted definitions now work anywhere in a calculation: `3"teabage"+2=` gives 5 and defines teabage as 3.
+- Supports multiple bindings, function arguments and reuse later in the same expression.
+- Quoted names bind the preceding value; use parentheses to name an entire calculation.
+- Failed lines discard partial bindings and invalidate attempted reassignments.
+
 ## 1.2.1 — Delete notes
 
 - Added Notes → Delete this note, with confirmation before permanent deletion.

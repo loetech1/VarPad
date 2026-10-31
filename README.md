@@ -24,6 +24,17 @@ horses * feed_per_horse =
 
 The last line displays **75** immediately after `=`. Change the number of horses and the answer updates. Both styles can be mixed freely, and expressions work too: `(20 + 5)"herd"`.
 
+Quoted names also work inside calculations:
+
+```text
+3"teabage" + 2 =       # 5; teabage is 3
+teabage * 4 =         # 12
+3"tea" + 2"sugar" =   # 5; defines both variables
+(3 + 2)"total" =      # total is 5
+```
+
+A quoted name binds the preceding value; parentheses name a whole calculation. Signs and powers bind before the quoted name, multiplication and addition after it. Bindings can be reused later in the same expression and on following lines. Failed lines do not save partial bindings and invalidate attempted reassignments.
+
 Names ignore case, start with a letter or `_`, and can contain letters, digits and underscores. Variables belong to their note and evaluate from top to bottom. Constants such as `pi` and `e`, and the previous-result name `ans`, are reserved. Straight or curly double quotes work; names containing spaces are not supported.
 
 ## A scratchpad for everyday maths
@@ -102,7 +113,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-installer.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\screenshots.ps1
 ```
 
-Outputs go in `dist/`. Add `-OutputDirectory dist\v1.2.1` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
+Outputs go in `dist/`. Add `-OutputDirectory dist\v1.2.2` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
 
 | Source | Purpose |
 | --- | --- |
