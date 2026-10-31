@@ -38,6 +38,8 @@ namespace VarPad
         public const int MaxLineLength = 4096;
         private static readonly Regex Assignment = new Regex(@"^([a-zA-Z_][a-zA-Z_0-9]*)\s*=(?!=)(.*)$");
         private static readonly Regex QuotedAssignment = new Regex(@"^(.+?)\s*""([a-zA-Z_][a-zA-Z_0-9]*)""\s*$");
+        private static readonly Regex QuotedName = new Regex(@"""([a-zA-Z_][a-zA-Z_0-9]*)""");
+        private static readonly Regex ValidName = new Regex(@"^[a-zA-Z_][a-zA-Z_0-9]*$");
         private static readonly HashSet<string> Reserved = new HashSet<string>(new[] { "pi", "e", "phi", "tau", "ans", "mod", "xor", "and", "or", "not" }, StringComparer.OrdinalIgnoreCase);
 
         public static string Format(double value)
@@ -67,11 +69,6 @@ namespace VarPad
                     line.Variable = assignment.Groups[1].Value;
                     expression = assignment.Groups[2].Value.Trim();
                 }
-                else if (quoted.Success)
-                {
-                    line.Variable = quoted.Groups[2].Value;
-                    expression = quoted.Groups[1].Value.Trim();
-                }
                 else if (LooksLikeMemo(expression, sheet.Variables)) { line.IsMemo = true; continue; }
                 if (line.Variable != null) line.AssignedExpression = expression;
                 try
@@ -86,14 +83,25 @@ namespace VarPad
                         expected = expression.Substring(equals + 1).Trim();
                         expression = expression.Substring(0, equals).Trim();
                     }
-                    double value = Evaluate(expression, sheet.Variables, degrees);
+                    // Bindings are available later in this expression, but only
+                    // become sheet variables when the whole line succeeds.
+                    Dictionary<string, double> pending = new Dictionary<string, double>(sheet.Variables, StringComparer.OrdinalIgnoreCase);
+                    double value = new Parser(expression, pending, degrees).Run();
                     if (!String.IsNullOrEmpty(expected))
                     {
-                        double expectedValue = Evaluate(expected, sheet.Variables, degrees);
+                        double expectedValue = Evaluate(expected, pending, degrees);
                         line.Matches = Math.Abs(value - expectedValue) <= 1e-12 * Math.Max(1, Math.Max(Math.Abs(value), Math.Abs(expectedValue)));
                     }
                     line.Value = value;
-                    if (line.Variable != null) sheet.Variables[line.Variable] = value;
+                    if (line.Variable != null) pending[line.Variable] = value;
+                    foreach (KeyValuePair<string, double> pair in pending) sheet.Variables[pair.Key] = pair.Value;
+                    if (line.Variable == null && quoted.Success)
+                    {
+                        // Display metadata only; the parser has already bound
+                        // the quoted name to the preceding value, not the total.
+                        line.Variable = quoted.Groups[2].Value;
+                        line.AssignedExpression = quoted.Groups[1].Value.Trim();
+                    }
                     previous = value;
                 }
                 catch (CalculationException ex)
@@ -101,6 +109,8 @@ namespace VarPad
                     line.Error = ex.Message;
                     // A broken reassignment must not silently reuse an old value.
                     if (line.Variable != null && !Reserved.Contains(line.Variable)) sheet.Variables.Remove(line.Variable);
+                    foreach (Match binding in QuotedName.Matches(expression))
+                        if (!Reserved.Contains(binding.Groups[1].Value)) sheet.Variables.Remove(binding.Groups[1].Value);
                 }
             }
             sheet.Variables.Remove("ans");
@@ -109,6 +119,7 @@ namespace VarPad
 
         private static bool LooksLikeMemo(string text, IDictionary<string, double> variables)
         {
+            if (text.IndexOf('"') >= 0) return false;
             if (Regex.IsMatch(text, @"^[a-zA-Z_][a-zA-Z_0-9]*$"))
                 return !variables.ContainsKey(text) && !Reserved.Contains(text) && !Parser.FunctionNames.Contains(text.ToLowerInvariant());
             // Plain prose is a memo. Anything containing math syntax is parsed and errors stay visible.
@@ -118,7 +129,7 @@ namespace VarPad
         public static double Evaluate(string expression, IDictionary<string, double> variables, bool degrees)
         {
             if (expression.Length > MaxLineLength) throw new CalculationException("Line is too long");
-            return new Parser(expression, variables, degrees).Run();
+            return new Parser(expression, new Dictionary<string, double>(variables, StringComparer.OrdinalIgnoreCase), degrees).Run();
         }
 
         private sealed class Parser
@@ -138,6 +149,7 @@ namespace VarPad
             internal Parser(string input, IDictionary<string, double> variables, bool degrees)
             {
                 this.input = input.Replace('×', '*').Replace('÷', '/').Replace('−', '-').Replace("π", "pi").Replace("φ", "phi").Replace("√", "sqrt");
+                this.input = this.input.Replace('\u201c', '"').Replace('\u201d', '"');
                 this.variables = variables;
                 this.degrees = degrees;
                 Next();
@@ -155,6 +167,13 @@ namespace VarPad
                 if (position >= input.Length) { token = ""; kind = "end"; return; }
                 int start = position;
                 char c = input[position++];
+                if (c == '"')
+                {
+                    int end = input.IndexOf('"', position);
+                    if (end < 0) throw new CalculationException("Missing closing quote for variable name");
+                    token = input.Substring(position, end - position); position = end + 1;
+                    kind = "binding"; return;
+                }
                 if (Char.IsDigit(c) || c == '.')
                 {
                     if (c == '0' && position < input.Length && (input[position] == 'x' || input[position] == 'X' || input[position] == 'b' || input[position] == 'B'))
@@ -196,6 +215,7 @@ namespace VarPad
                 if (++depth > 96) throw new CalculationException("Expression is too deeply nested");
                 double left;
                 string current = token;
+                if (kind == "binding") throw new CalculationException("Put a quoted variable name after a value");
                 if (current == "+" || current == "-" || current == "~" || current == "not")
                 {
                     Next(); left = Expression(65);
@@ -225,6 +245,16 @@ namespace VarPad
                 else throw new CalculationException(kind == "end" ? "Incomplete expression" : "Unexpected '" + token + "'");
                 while (true)
                 {
+                    // Below unary signs/powers, above multiplication/addition.
+                    // Parenthesize a calculation to name its whole result.
+                    if (kind == "binding" && minimum <= 64)
+                    {
+                        if (!ValidName.IsMatch(token)) throw new CalculationException("Invalid variable name: " + token);
+                        if (Reserved.Contains(token)) throw new CalculationException("Reserved name: " + token);
+                        variables[token] = Finite(left);
+                        Next(); continue;
+                    }
+                    if (kind == "binding") break;
                     if (token == "!" && minimum <= 80) { Next(); left = Factorial(left); continue; }
                     string op = token;
                     int precedence = Precedence(op);

@@ -2,6 +2,9 @@ VARIABLES
 horses = 25           name first
 25"horses"            value first; same assignment
 (20 + 5)"horses"      expressions work too
+3"teabage" + 2 =      5; teabage is 3
+3"tea" + 2"sugar"     define several values in one line
+(3 + 2)"total"        name a whole calculation
 horses * 3            → 75
 
 a = 3
@@ -15,6 +18,10 @@ evaluated from top to bottom. Edit an earlier value and
 all later results update. Use letters, digits and _ in
 names; start with a letter or _. Constants and ans are
 reserved. Forward references are not supported.
+Quoted names bind the preceding value, including its sign
+and powers. Use parentheses to name a sum or product.
+You can reuse a name later in the same expression.
+Failed lines discard bindings and invalidate reassignments.
 
 NOTES & WRITTEN ANSWERS
 Type cls or clear on its own line, then press Enter
@@ -103,5 +110,5 @@ significant digits); results display 12 significant
 digits. Display rounding never changes stored values.
 This is not an arbitrary-precision or symbolic solver.
 
-VarPad 1.2.1 · Independent Windows application.
+VarPad 1.2.2 · Independent Windows application.
 Inspired by the notepad-calculator workflow.
