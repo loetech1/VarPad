@@ -32,6 +32,7 @@ internal static class LayoutChecks
             app.Notes = new System.Collections.Generic.List<Note>();
             Note note = new Note { Text = "a=3\nv=2\na+v=\na+v" };
             NoteWindow view = new NoteWindow(app, note);
+            app.Notes.Add(note); app.OpenNotes.Add(note.Id, view);
             // Exercise actual WPF layout without stealing focus or using profile data.
             view.Window.ShowActivated = false; view.Window.ShowInTaskbar = false; view.Window.Opacity = 0;
             view.Window.Show(); Pump();
@@ -115,8 +116,23 @@ internal static class LayoutChecks
                 PngBitmapEncoder encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using (FileStream image = File.Create(args[1])) encoder.Save(image);
             }
-            view.Window.Close();
-            Console.WriteLine("PASS: " + checks + " WPF layout, scrollbar and clear-command checks.");
+            app.Notes.Add(other);
+            editor.Text = "unsaved=123";
+            Check(!view.TryDeleteNote(false) && view.Window.IsVisible && app.Notes.Contains(note), "Cancel deletion preserves note and window");
+            Check(view.TryDeleteNote(true), "Confirmed deletion succeeds with a pending autosave");
+            NoteWindow reopened = app.OpenNotes[other.Id];
+            reopened.Window.Opacity = 0; reopened.Window.ShowInTaskbar = false;
+            Pump(); Pump(); Pump(); Pump();
+            Check(!app.Notes.Contains(note) && !app.OpenNotes.ContainsKey(note.Id), "Deleted note leaves notes menu and open-window registry");
+            Check(app.Store.Load().All(n => n.Id != note.Id), "Closing and queued autosave must not recreate deleted note");
+            Check(reopened.Window.IsVisible && other.Text == "keep=42", "Last open note deletion reopens remaining saved note");
+            Check(reopened.TryDeleteNote(true), "Final saved note can be deleted");
+            NoteWindow blank = app.OpenNotes.Values.Single();
+            blank.Window.Opacity = 0; blank.Window.ShowInTaskbar = false; Pump();
+            Check(app.Notes.Count == 1 && blank.Note.Text == "" && blank.Note.Id != other.Id, "Deleting final note creates a fresh blank scratchpad");
+            Check(app.Store.Load().All(n => n.Id != note.Id && n.Id != other.Id), "Neither deleted note returns after save");
+            blank.Window.Close();
+            Console.WriteLine("PASS: " + checks + " WPF layout, scrollbar, clear-command and deletion checks.");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }

@@ -121,7 +121,22 @@ internal static class Tests
         Note changed = migrated.Load()[0]; changed.Text = "25\"horses\""; migrated.Save(changed);
         migrated.ImportLegacy(path);
         Check(migrated.Load()[0].Text == "25\"horses\"", "legacy migration runs only once and preserves new edits");
+        Note survivor = new Note { Text = "keep=42" }; store.Save(survivor);
+        File.WriteAllText(file + ".tmp", "unfinished save");
+        using (FileStream locked = new FileStream(file + ".bak", FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            try { store.Delete(note); throw new Exception("Locked backup deletion accepted"); } catch (IOException) { count++; }
+            Check(File.Exists(file), "failed deletion keeps the primary note");
+        }
+        store.Delete(note);
+        Check(!File.Exists(file) && !File.Exists(file + ".bak") && !File.Exists(file + ".tmp"), "delete removes note, backup and temporary file");
+        Check(store.Load().Count == 1 && store.Load()[0].Id == survivor.Id, "deleted note stays absent after reload; other note remains");
+        store.Delete(note);
+        Check(store.Load().Count == 1, "deleting absent note is harmless");
+        migrated.Delete(changed); migrated.ImportLegacy(path);
+        Check(migrated.Load().Count == 0, "legacy import does not resurrect deleted notes");
         note.Id = "../../escape";
+        try { store.Delete(note); throw new Exception("Delete path traversal accepted"); } catch (InvalidDataException) { count++; }
         try { store.Save(note); throw new Exception("Path traversal accepted"); } catch (InvalidDataException) { count++; }
     }
     private static void QuotedVariableTests()
