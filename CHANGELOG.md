@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 — Optional text wrapping
+
+- Added Settings → Wrap text, saved independently for each note (off by default).
+- Wrapped calculations keep their inline answers and logical line numbers when resized or scrolled.
+- Copy-result and clear commands respect logical lines across visual wraps.
+- Long error messages fit the viewport with full detail in tooltips.
+- Existing notes and their source text are preserved.
+
 ## 1.2.2 — Variables inside calculations
 
 - Quoted definitions now work anywhere in a calculation: `3"teabage"+2=` gives 5 and defines teabage as 3.

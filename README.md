@@ -45,6 +45,7 @@ Names ignore case, start with a letter or `_`, and can contain letters, digits a
 - **A small desktop companion.** Compact toolbar, always on top, 6-pixel scrollbars and adjustable text size.
 - **Your preferred look.** Green text on charcoal by default; dark, light, amber and blue themes. Adjust background opacity while keeping text opaque.
 - **Notes that stay.** Multiple windows, local autosave, backup recovery, rename, duplicate, delete, import and export.
+- **Wrap long lines.** Choose **⋯ → Wrap text** to fit text to the window. This preference saves per note. Calculations stay on one logical line, with answers at the end.
 - **Start fresh quickly.** Type `cls` or `clear` on its own line and press Enter. Ctrl+Z restores the cleared note.
 - **Useful maths built in.** Powers, roots, factorials, rounding, logs, trigonometry, aggregates, bitwise operators and binary/hexadecimal numbers.
 
@@ -113,7 +114,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-installer.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\screenshots.ps1
 ```
 
-Outputs go in `dist/`. Add `-OutputDirectory dist\v1.2.2` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
+Outputs go in `dist/`. Add `-OutputDirectory dist\v1.3.0` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
 
 | Source | Purpose |
 | --- | --- |
