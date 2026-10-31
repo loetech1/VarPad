@@ -1,0 +1,104 @@
+VARIABLES
+horses = 25           name first
+25"horses"            value first; same assignment
+(20 + 5)"horses"      expressions work too
+horses * 3            → 75
+
+a = 3
+v = 2
+a + v                 → 5
+total = a * v         → 6
+ans + 10              → last successful result + 10
+
+Variables are local to each note, ignore case, and are
+evaluated from top to bottom. Edit an earlier value and
+all later results update. Use letters, digits and _ in
+names; start with a letter or _. Constants and ans are
+reserved. Forward references are not supported.
+
+NOTES & WRITTEN ANSWERS
+Type cls or clear on its own line, then press Enter
+to clear the current note and its variables. Commands
+ignore case and surrounding spaces. Ctrl+Z undoes it.
+Other notes and settings are kept.
+
+# A comment, heading or reminder
+price = 48 # an inline memo
+Plain sentences can be memos too.
+a + v =               → 5
+a + v = 5             → checks the written answer
+a + v = 9             → shows correction: → 5
+Use # before memos that contain numbers or operators.
+Generated answers appear inline after = without being
+inserted into your editable text. Click one to copy it,
+or use Ctrl+Shift+C. Plain a = 3 is not duplicated.
+
+ARITHMETIC
++  -  *  /            add, subtract, multiply, divide
+% or mod              remainder: 17 % 5 → 2
+^ or **               power: 2^3 → 8
+( )                   grouping: (2 + 3) * 4 → 20
+2pi, 2(3 + 4)         implicit multiplication
+5!                    factorial → 120
+1.25e3                scientific notation → 1250
+Percentages: 200 * 15 / 100 → 30
+Multiplication and division have equal precedence.
+Powers associate right; -2^2 = -4.
+
+FUNCTIONS
+sqrt(25)              square root → 5
+cbrt(-8)              cube root → -2
+root(32, 5)           nth root → 2
+pow(2, 3)             power → 8
+abs(-5)               absolute value → 5
+floor(2.8)            round down → 2
+ceil(2.1)             round up → 3
+trunc(-2.8)           truncate → -2
+round(2.345, 2)       round, halves away from zero
+ln(e), log(100)       natural log, base-10 log
+log(8, 2), log2(8)    custom-base log, base-2 log
+exp(2)                e squared
+sin(30), cos(60), tan(45)
+asin(0.5), acos(0.5), atan(1), atan2(1, 1)
+sinh(1), cosh(1), tanh(1)
+deg(pi), rad(180)     convert angle units
+min(3, 8), max(3, 8), sum(1, 2, 3), avg(2, 4)
+sign(-5), factorial(5), mod(17, 5)
+
+DEG / RAD controls trig inputs and inverse-trig results.
+Constants: pi (π), tau, e, phi (φ / golden ratio).
+
+BITWISE
+6 & 3 or 6 and 3      AND → 2
+6 | 3 or 6 or 3       OR → 7
+6 xor 3               XOR → 5
+~6 or not 6           NOT → -7
+3 << 2, 12 >> 2       shifts → 12, 3
+0xff, 0b1010          hexadecimal / binary literals
+Bitwise inputs must be exact integers, up to 2^53−1
+in magnitude. Shifts accept 0–52. ^ means power.
+
+SHORTCUTS
+Ctrl+N                new note window
+Ctrl+O                import a text note
+Ctrl+S                export a text note
+Ctrl+Shift+C          copy current line's result
+Ctrl+Shift+P          toggle always on top
+Ctrl++ / Ctrl+-       larger / smaller text
+Ctrl+W                close this window (keeps note)
+Ctrl+Q                quit and restore open notes later
+Ctrl+Z / Ctrl+Y       undo / redo
+F1                    this reference
+
+Notes menu reopens closed notes. Settings changes the
+theme, font size and background opacity per note.
+Text stays opaque when the background is transparent.
+
+NUMERIC PRECISION
+Calculations use IEEE 754 double precision (about 15
+significant digits); results display 12 significant
+digits. Display rounding never changes stored values.
+This is not an arbitrary-precision or symbolic solver.
+
+VarPad 1.2 · Independent Windows application.
+Inspired by the notepad-calculator workflow.
