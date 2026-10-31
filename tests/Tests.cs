@@ -102,11 +102,17 @@ internal static class Tests
     {
         string path = Path.Combine(directory, Guid.NewGuid().ToString("N"));
         NoteStore store = new NoteStore(path);
-        Note note = new Note { Text = "a=3\nv=2\na+v", Title = "My maths π", BackgroundOpacity = .85, Pinned = true };
+        Note note = new Note { Text = "a=3\nv=2\na+v", Title = "My maths π", BackgroundOpacity = .85, Pinned = true, WrapText = true };
         store.Save(note);
         Note loaded = store.Load()[0];
         Check(loaded.Text == note.Text && loaded.Title == note.Title, "save and restore text including unicode");
         Check(loaded.Pinned && loaded.BackgroundOpacity == .85, "save and restore settings");
+        Check(loaded.WrapText, "wrap preference survives save and reload");
+        NoteStore oldStore = new NoteStore(Path.Combine(path, "old-format"));
+        Note oldNote = new Note { Text = "keep=7" }; oldStore.Save(oldNote);
+        string oldFile = Path.Combine(oldStore.DirectoryPath, oldNote.Id + ".xml");
+        File.WriteAllText(oldFile, File.ReadAllText(oldFile).Replace("<WrapText>false</WrapText>", ""));
+        Check(!oldStore.Load()[0].WrapText && oldStore.Load()[0].Text == "keep=7", "older notes default to no wrap without losing content");
         note.Text = "a=4"; store.Save(note);
         Check(store.Load()[0].Text == "a=4", "atomic overwrite");
         string file = Path.Combine(path, note.Id + ".xml");

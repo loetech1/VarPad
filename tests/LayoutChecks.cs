@@ -122,6 +122,56 @@ internal static class LayoutChecks
                 PngBitmapEncoder encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using (FileStream image = File.Create(args[1])) encoder.Save(image);
             }
+            view.Window.Width = 400;
+            string wrapExpression = String.Join("+", Enumerable.Repeat("1", 70)) + "=";
+            string wrapText = wrapExpression + "\r\n# " + new string('w', 130) + "\r\n3\"tea\"+2=\r\n";
+            editor.Text = wrapText; editor.CaretIndex = 0; editor.ScrollToHome(); Pump();
+            view.ToggleWrap(); Pump(); Pump();
+            Check(note.WrapText && editor.TextWrapping == TextWrapping.Wrap, "Wrap option enables wrapping for this note");
+            Check(!horizontal.IsVisible && scroll.ScrollableWidth < 1 && editor.HorizontalOffset == 0, "Wrapping removes horizontal scrolling");
+            Check(editor.LineCount > 4, "Long words and calculations must soft-wrap");
+            Check(editor.Text == wrapText, "Wrapping must not insert newlines or change expressions");
+            TextBlock wrappedAnswer = answers.Children.OfType<TextBlock>().Single(t => t.Text == " 70");
+            Rect wrappedEnd = editor.GetRectFromCharacterIndex(wrapExpression.Length - 1, true);
+            Check(Math.Abs(Canvas.GetTop(wrappedAnswer) - wrappedEnd.Top) < 2 && Math.Abs(Canvas.GetLeft(wrappedAnswer) - wrappedEnd.Left - 2) < 1, "Answer follows final wrapped segment");
+            Canvas lineNumbers = (Canvas)view.Window.FindName("Numbers");
+            Check(lineNumbers.Children.OfType<TextBlock>().Count(t => t.Text == "01") == 1 && lineNumbers.Children.OfType<TextBlock>().Any(t => t.Text == "03"), "Line numbers represent logical lines, not visual segments");
+            Check(view.LogicalLineAt(wrapExpression.Length / 2) == 0 && view.LogicalLineAt(wrapText.IndexOf("3\"tea\"")) == 2, "Copy-result mapping tracks logical lines through CRLF and soft wraps");
+            view.Window.Width = 580; Pump();
+            wrappedAnswer = answers.Children.OfType<TextBlock>().Single(t => t.Text == " 70");
+            wrappedEnd = editor.GetRectFromCharacterIndex(wrapExpression.Length - 1, true);
+            Check(Math.Abs(Canvas.GetTop(wrappedAnswer) - wrappedEnd.Top) < 2, "Wrapped results follow window resize");
+            Check(answers.Children.OfType<TextBlock>().All(t => Canvas.GetLeft(t) + t.ActualWidth <= editor.ActualWidth), "Wrapped answers stay within viewport");
+            Pump(); Pump(); Pump(); Pump();
+            Check(app.Store.Load().Single(n => n.Id == note.Id).WrapText, "Wrap toggle autosaves");
+            Check(!app.Store.Load().Single(n => n.Id == other.Id).WrapText, "Wrap setting does not affect other notes");
+            editor.Text = "unknown_variable_with_a_very_long_name+1"; Pump();
+            view.Window.Width = 1800; Pump(); view.Window.Width = 400; Pump();
+            Check(editor.Padding.Right <= editor.ActualWidth * .45 + 1 && editor.ViewportWidth > 100, "Long errors cannot squeeze the wrapped editor after resizing");
+            TextBlock wrappedError = answers.Children.OfType<TextBlock>().Single();
+            Check(Canvas.GetLeft(wrappedError) + wrappedError.ActualWidth <= editor.ActualWidth && wrappedError.ToolTip.ToString().Contains("unknown_variable_with_a_very_long_name"), "Wrapped errors fit the window with full detail in tooltip");
+            editor.Text = String.Join("\n", Enumerable.Range(1, 35).Select(i => wrapExpression + " # " + i));
+            Pump(); editor.ScrollToEnd(); Pump(); Pump();
+            Check(editor.VerticalOffset > 0 && answers.Children.OfType<TextBlock>().Any(t => t.Text == " = 70"), "Wrapped results remain visible after scrolling to bottom");
+            Check(lineNumbers.Children.OfType<TextBlock>().Any(t => t.Text == "35"), "Scrolled line numbers keep logical indices: " + String.Join(",", lineNumbers.Children.OfType<TextBlock>().Select(t => t.Text)));
+            editor.Text = "# " + new string('w', 150) + " clear";
+            editor.CaretIndex = editor.Text.Length; Pump();
+            Check(!view.TryClearCommand(), "A wrapped continuation ending in clear must not clear the note");
+            editor.Text += "\nclear"; editor.CaretIndex = editor.Text.Length;
+            Check(view.TryClearCommand() && editor.Text == "", "Clear command after wrapped content still works before calculation timer fires");
+            editor.Undo(); Pump();
+            Check(editor.Text.EndsWith("\nclear"), "Undo restores wrapped content after clear");
+            editor.Text = wrapText; editor.CaretIndex = 0; editor.ScrollToHome(); Pump();
+            if (args.Length > 1)
+            {
+                FrameworkElement shell = (FrameworkElement)view.Window.Content;
+                RenderTargetBitmap bitmap = new RenderTargetBitmap((int)shell.ActualWidth, (int)shell.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(shell);
+                PngBitmapEncoder encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (FileStream image = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "wrap-preview.png"))) encoder.Save(image);
+            }
+            view.ToggleWrap(); Pump();
+            Check(!note.WrapText && horizontal.IsVisible && editor.Text == wrapText, "Turning wrap off restores horizontal scrolling without changing content");
             app.Notes.Add(other);
             editor.Text = "unsaved=123";
             Check(!view.TryDeleteNote(false) && view.Window.IsVisible && app.Notes.Contains(note), "Cancel deletion preserves note and window");
