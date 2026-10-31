@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1 — Delete notes
+
+- Added Notes → Delete this note, with confirmation before permanent deletion.
+- Removes the saved note, backup and temporary file without autosave recreating them.
+- Deleting the last open note opens another saved note, or a blank scratchpad.
+- Closing a window still keeps its note saved.
+
 ## 1.2.0 — VarPad
 
 - Renamed the application, installer, shortcuts and executable to VarPad.

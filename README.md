@@ -33,7 +33,7 @@ Names ignore case, start with a letter or `_`, and can contain letters, digits a
 - **Answers where you write.** Live results appear inline, with no separate answer column. Click a generated answer to copy it.
 - **A small desktop companion.** Compact toolbar, always on top, 6-pixel scrollbars and adjustable text size.
 - **Your preferred look.** Green text on charcoal by default; dark, light, amber and blue themes. Adjust background opacity while keeping text opaque.
-- **Notes that stay.** Multiple windows, local autosave, backup recovery, rename, duplicate, import and export.
+- **Notes that stay.** Multiple windows, local autosave, backup recovery, rename, duplicate, delete, import and export.
 - **Start fresh quickly.** Type `cls` or `clear` on its own line and press Enter. Ctrl+Z restores the cleared note.
 - **Useful maths built in.** Powers, roots, factorials, rounding, logs, trigonometry, aggregates, bitwise operators and binary/hexadecimal numbers.
 
@@ -63,7 +63,7 @@ For a standalone copy, extract **VarPad-Portable.zip** and run **VarPad.exe**. K
 | Ctrl+Q | Quit and restore open notes on next launch |
 | F1 | Functions and syntax reference |
 
-The **Notes** menu reopens saved notes. **⋯** opens theme, font and opacity settings.
+The **Notes** menu reopens saved notes. To delete one permanently, open it, choose **Notes → Delete this note…**, and confirm. This removes the note and its backup; it cannot be undone. Closing a window with **×** still keeps its note saved. **⋯** opens theme, font and opacity settings.
 
 ## How calculations behave
 
@@ -102,7 +102,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-installer.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\screenshots.ps1
 ```
 
-Outputs go in `dist/`. Add `-OutputDirectory dist\v1.2.0` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
+Outputs go in `dist/`. Add `-OutputDirectory dist\v1.2.1` to the build and installer-test commands to use a separate release directory. The execution-policy flag applies only to that build process; it does not change Windows settings. Tests use temporary data under `build/`, not your notes, shortcuts or registry.
 
 | Source | Purpose |
 | --- | --- |
