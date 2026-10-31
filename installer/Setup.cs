@@ -10,8 +10,8 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 [assembly: AssemblyTitle("VarPad Setup")]
-[assembly: AssemblyVersion("1.2.1.0")]
-[assembly: AssemblyFileVersion("1.2.1.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyFileVersion("1.2.2.0")]
 
 namespace VarPadSetup
 {
@@ -111,7 +111,7 @@ namespace VarPadSetup
             using (RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath))
             {
                 key.SetValue("DisplayName", "VarPad");
-                key.SetValue("DisplayVersion", "1.2.1");
+                key.SetValue("DisplayVersion", "1.2.2");
                 key.SetValue("Publisher", "VarPad");
                 key.SetValue("InstallLocation", InstallDirectory);
                 key.SetValue("DisplayIcon", Executable);
