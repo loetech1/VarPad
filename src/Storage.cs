@@ -19,6 +19,7 @@ namespace VarPad
         public double FontSize = 17;
         public double BackgroundOpacity = 0.94;
         public bool Pinned;
+        public bool WrapText;
         public bool Degrees = true;
         public bool WasOpen = true;
         public string Theme = "Green";

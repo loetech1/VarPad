@@ -18,8 +18,8 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("VarPad")]
 [assembly: AssemblyDescription("A little space to think in numbers.")]
-[assembly: AssemblyVersion("1.2.2.0")]
-[assembly: AssemblyFileVersion("1.2.2.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace VarPad
 {
@@ -119,6 +119,7 @@ namespace VarPad
         private readonly DispatcherTimer saveTimer, calculationTimer;
         private SheetResult sheet = new SheetResult();
         private string evaluatedText = "";
+        private int[] lineStarts = new[] { 0 };
         private int renderRevision;
         private string lastRenderKey;
         private bool ready, drawing, deleted;
@@ -150,6 +151,7 @@ namespace VarPad
             editor.SelectionChanged += delegate { if (ready) DrawResults(); };
             editor.LayoutUpdated += delegate { DrawResults(); };
             Window.SizeChanged += delegate { DrawResults(); if (ready) Dirty(); };
+            editor.SizeChanged += delegate { if (ready && Note.WrapText) UpdateResultPadding(); DrawResults(); };
             Window.LocationChanged += delegate { if (ready) Dirty(); };
             Window.PreviewKeyDown += KeyDown;
             Window.Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e)
@@ -210,6 +212,8 @@ namespace VarPad
             Find<Button>("Pin").Background = Note.Pinned ? Brush("#304F6540") : Brushes.Transparent;
             Find<Button>("Angle").Content = Note.Degrees ? "DEG" : "RAD";
             editor.FontSize = Note.FontSize;
+            editor.TextWrapping = Note.WrapText ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            editor.HorizontalScrollBarVisibility = Note.WrapText ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
             DrawResults();
         }
         private void TogglePin() { Note.Pinned = !Note.Pinned; ApplyAppearance(); Dirty(); }
@@ -233,8 +237,24 @@ namespace VarPad
         {
             renderRevision++;
             evaluatedText = editor.Text;
+            List<int> starts = new List<int> { 0 };
+            for (int i = 0; i < evaluatedText.Length; i++)
+            {
+                if (evaluatedText[i] == '\r')
+                {
+                    if (i + 1 < evaluatedText.Length && evaluatedText[i + 1] == '\n') i++;
+                    starts.Add(i + 1);
+                }
+                else if (evaluatedText[i] == '\n') starts.Add(i + 1);
+            }
+            lineStarts = starts.ToArray();
             sheet = Calculator.EvaluateSheet(evaluatedText, Note.Degrees);
             Find<Button>("Variables").Content = sheet.Variables.Count + (sheet.Variables.Count == 1 ? " variable" : " variables");
+            UpdateResultPadding();
+            DrawResults();
+        }
+        private void UpdateResultPadding()
+        {
             // Reserve room inside the horizontal scroll extent for the longest
             // generated suffix, without dedicating a result column on screen.
             double reserve = 12;
@@ -244,8 +264,13 @@ namespace VarPad
                 measure.Measure(new Size(Double.PositiveInfinity, Double.PositiveInfinity));
                 reserve = Math.Max(reserve, measure.DesiredSize.Width + 12);
             }
+            if (Note.WrapText) reserve = Math.Min(reserve, Math.Max(12, editor.ActualWidth * .45));
             editor.Padding = new Thickness(0, 4, reserve, 20);
-            DrawResults();
+        }
+        internal int LogicalLineAt(int characterIndex)
+        {
+            int found = Array.BinarySearch(lineStarts, Math.Max(0, characterIndex));
+            return found >= 0 ? found : Math.Max(0, ~found - 1);
         }
         private void DrawResults()
         {
@@ -253,28 +278,30 @@ namespace VarPad
             drawing = true;
             try
             {
-                int first = Math.Max(0, editor.GetFirstVisibleLineIndex());
-                int last = Math.Min(sheet.Lines.Count - 1, Math.Max(first, editor.GetLastVisibleLineIndex()));
-                int current = editor.GetLineIndexFromCharacterIndex(editor.CaretIndex);
+                int firstVisual = editor.GetFirstVisibleLineIndex(), lastVisual = editor.GetLastVisibleLineIndex();
+                if (firstVisual < 0 || lastVisual < 0) return;
+                int first = LogicalLineAt(editor.GetCharacterIndexFromLineIndex(firstVisual));
+                int last = Math.Min(sheet.Lines.Count - 1, LogicalLineAt(editor.GetCharacterIndexFromLineIndex(lastVisual)));
+                int current = LogicalLineAt(editor.CaretIndex);
                 string renderKey = String.Join("|", new object[] { renderRevision, first, last, current, editor.HorizontalOffset, editor.VerticalOffset, editor.ActualWidth, editor.ActualHeight, editor.ExtentWidth, editor.ExtentHeight, editor.ViewportWidth, editor.ViewportHeight });
                 if (lastRenderKey == renderKey) return;
                 lastRenderKey = renderKey;
                 results.Children.Clear(); numbers.Children.Clear();
                 for (int i = first; i <= last; i++)
                 {
-                    int charIndex = editor.GetCharacterIndexFromLineIndex(i);
-                    if (charIndex < 0) continue;
+                    int charIndex = lineStarts[i];
                     Rect rect = editor.GetRectFromCharacterIndex(charIndex);
-                    if (rect.IsEmpty) continue;
-                    double y = rect.Top;
                     LineResult lineResult = sheet.Lines[i];
-                    TextBlock num = new TextBlock { Text = (i + 1).ToString("00"), FontFamily = new FontFamily("Consolas"), FontSize = 11, Foreground = i == current ? ink : muted, Opacity = i == current ? 1 : .55 };
-                    Canvas.SetTop(num, y + (editor.FontSize - 11) / 2); Canvas.SetLeft(num, 14); numbers.Children.Add(num);
+                    if (!rect.IsEmpty)
+                    {
+                        TextBlock num = new TextBlock { Text = (i + 1).ToString("00"), FontFamily = new FontFamily("Consolas"), FontSize = 11, Foreground = i == current ? ink : muted, Opacity = i == current ? 1 : .55 };
+                        Canvas.SetTop(num, rect.Top + (editor.FontSize - 11) / 2); Canvas.SetLeft(num, 14); numbers.Children.Add(num);
+                    }
                     if (!lineResult.Value.HasValue && lineResult.Error == null) continue;
                     string suffix = InlineAnswer.Suffix(lineResult);
                     if (suffix.Length == 0) continue;
-                    int endIndex = charIndex + editor.GetLineText(i).TrimEnd('\r', '\n').Length;
-                    Rect end = editor.GetRectFromCharacterIndex(endIndex);
+                    int endIndex = charIndex + lineResult.Source.Length;
+                    Rect end = endIndex > charIndex ? editor.GetRectFromCharacterIndex(endIndex - 1, true) : rect;
                     if (end.IsEmpty) continue;
                     bool mismatch = lineResult.Matches == false;
                     TextBlock result = new TextBlock
@@ -290,7 +317,12 @@ namespace VarPad
                         double value = lineResult.Value.Value;
                         result.MouseLeftButtonUp += delegate { Copy(Calculator.Format(value)); };
                     }
-                    Canvas.SetTop(result, y + (lineResult.Error != null ? (editor.FontSize - 11) / 2 : -1)); Canvas.SetLeft(result, end.Left + 2); results.Children.Add(result);
+                    if (Note.WrapText)
+                    {
+                        result.MaxWidth = Math.Max(0, editor.ActualWidth - end.Left - 10);
+                        result.TextTrimming = TextTrimming.CharacterEllipsis;
+                    }
+                    Canvas.SetTop(result, end.Top + (lineResult.Error != null ? (editor.FontSize - 11) / 2 : -1)); Canvas.SetLeft(result, end.Left + 2); results.Children.Add(result);
                 }
                 ScrollViewer scroll = editor.Template.FindName("PART_ContentHost", editor) as ScrollViewer;
                 if (scroll != null)
@@ -309,7 +341,7 @@ namespace VarPad
         private void CopyResult()
         {
             Recalculate();
-            int line = editor.GetLineIndexFromCharacterIndex(editor.CaretIndex);
+            int line = LogicalLineAt(editor.CaretIndex);
             if (line >= 0 && line < sheet.Lines.Count && sheet.Lines[line].Value.HasValue) Copy(Calculator.Format(sheet.Lines[line].Value.Value));
         }
         private ContextMenu Menu(string button)
@@ -370,6 +402,8 @@ namespace VarPad
         private void ShowSettings()
         {
             ContextMenu menu = Menu("Settings");
+            Item(menu, "Wrap text", ToggleWrap, Note.WrapText);
+            menu.Items.Add(new Separator());
             foreach (string theme in new[] { "Green", "Dark", "Light", "Amber", "Blue" })
             { string captured = theme; Item(menu, theme + " theme", delegate { Note.Theme = captured; ApplyAppearance(); Dirty(); }, Note.Theme == theme); }
             menu.Items.Add(new Separator());
@@ -390,6 +424,13 @@ namespace VarPad
             menu.IsOpen = true;
         }
         private void Zoom(int change) { Note.FontSize = Math.Max(12, Math.Min(28, Note.FontSize + change)); ApplyAppearance(); Recalculate(); Dirty(); }
+        internal void ToggleWrap()
+        {
+            Note.WrapText = !Note.WrapText;
+            ApplyAppearance(); Recalculate();
+            if (Note.WrapText) editor.ScrollToHorizontalOffset(0);
+            Dirty();
+        }
         private void KeyDown(object sender, KeyEventArgs e)
         {
             ModifierKeys mod = Keyboard.Modifiers;
@@ -412,9 +453,11 @@ namespace VarPad
         internal bool TryClearCommand()
         {
             if (editor.SelectionLength != 0) return false;
-            int line = editor.GetLineIndexFromCharacterIndex(editor.CaretIndex);
-            if (line < 0) return false;
-            string command = editor.GetLineText(line).Trim();
+            string text = editor.Text;
+            int caret = editor.CaretIndex;
+            int start = caret == 0 ? 0 : text.LastIndexOfAny(new[] { '\r', '\n' }, caret - 1) + 1;
+            int end = text.IndexOfAny(new[] { '\r', '\n' }, caret);
+            string command = text.Substring(start, (end < 0 ? text.Length : end) - start).Trim();
             if (!String.Equals(command, "cls", StringComparison.OrdinalIgnoreCase) &&
                 !String.Equals(command, "clear", StringComparison.OrdinalIgnoreCase)) return false;
             // Keep the clearing operation in the editor undo history. No other
