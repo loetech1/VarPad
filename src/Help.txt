@@ -90,7 +90,10 @@ Ctrl+Q                quit and restore open notes later
 Ctrl+Z / Ctrl+Y       undo / redo
 F1                    this reference
 
-Notes menu reopens closed notes. Settings changes the
+Notes menu reopens closed notes. To permanently delete a note,
+open it and choose Notes > Delete this note, then confirm.
+Deletion removes its saved backup too and cannot be undone.
+ Settings changes the
 theme, font size and background opacity per note.
 Text stays opaque when the background is transparent.
 
@@ -100,5 +103,5 @@ significant digits); results display 12 significant
 digits. Display rounding never changes stored values.
 This is not an arbitrary-precision or symbolic solver.
 
-VarPad 1.2 · Independent Windows application.
+VarPad 1.2.1 · Independent Windows application.
 Inspired by the notepad-calculator workflow.

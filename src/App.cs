@@ -18,8 +18,8 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("VarPad")]
 [assembly: AssemblyDescription("A little space to think in numbers.")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.2.1.0")]
+[assembly: AssemblyFileVersion("1.2.1.0")]
 
 namespace VarPad
 {
@@ -121,7 +121,7 @@ namespace VarPad
         private string evaluatedText = "";
         private int renderRevision;
         private string lastRenderKey;
-        private bool ready, drawing;
+        private bool ready, drawing, deleted;
         private Brush ink, muted, warning;
 
         internal NoteWindow(CalcApp app, Note note)
@@ -156,6 +156,7 @@ namespace VarPad
             {
                 Note.WasOpen = PreserveOpen;
                 saveTimer.Stop(); calculationTimer.Stop();
+                if (deleted) return;
                 if (!Save())
                 {
                     Note.WasOpen = true;
@@ -214,12 +215,14 @@ namespace VarPad
         private void TogglePin() { Note.Pinned = !Note.Pinned; ApplyAppearance(); Dirty(); }
         private void Dirty()
         {
+            if (deleted) return;
             Note.Text = editor.Text;
             status.Text = "Saving…";
             saveTimer.Stop(); saveTimer.Start();
         }
         private bool Save()
         {
+            if (deleted) return true;
             Note.Text = editor.Text;
             if (Window.WindowState == WindowState.Normal)
             { Note.Width = Window.Width; Note.Height = Window.Height; Note.Left = Window.Left; Note.Top = Window.Top; }
@@ -329,8 +332,40 @@ namespace VarPad
             Item(menu, "Import text…   Ctrl+O", Import);
             Item(menu, "Export this note…   Ctrl+S", Export);
             Item(menu, "Duplicate note", delegate { app.NewNote(Note.Title + " (copy)", editor.Text); });
+            Item(menu, "Delete this note...", ConfirmDelete);
+            menu.Items.Add(new Separator());
             Item(menu, "Quit all windows   Ctrl+Q", app.Quit);
             menu.IsOpen = true;
+        }
+        private void ConfirmDelete()
+        {
+            bool confirmed = MessageBox.Show(Window,
+                "Permanently delete \"" + Note.Title + "\" and its saved backup?\n\nThis cannot be undone.",
+                "Delete note", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+            TryDeleteNote(confirmed);
+        }
+        internal bool TryDeleteNote(bool confirmed)
+        {
+            if (!confirmed || deleted) return false;
+            try { app.Store.Delete(Note); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(Window, "Could not delete this note. It is still open.\n\n" + ex.Message,
+                    "Delete note", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+            deleted = true;
+            saveTimer.Stop(); calculationTimer.Stop();
+            app.Notes.Remove(Note);
+            // Keep a working window when deleting the last open note.
+            if (app.OpenNotes.Count <= 1)
+            {
+                Note next = app.Notes.OrderByDescending(n => n.Modified).FirstOrDefault();
+                if (next != null) app.ShowNote(next);
+                else app.NewNote("Scratchpad", "");
+            }
+            Window.Close();
+            return true;
         }
         private void ShowSettings()
         {

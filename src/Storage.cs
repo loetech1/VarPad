@@ -106,6 +106,17 @@ namespace VarPad
             else File.Move(temp, path);
         }
 
+        public void Delete(Note note)
+        {
+            Guid id;
+            if (!Guid.TryParseExact(note.Id, "N", out id)) throw new InvalidDataException("Invalid note identifier");
+            string path = Path.Combine(DirectoryPath, note.Id + ".xml");
+            // Delete the primary last so a failed cleanup leaves the saved note available.
+            File.Delete(path + ".tmp");
+            File.Delete(path + ".bak");
+            File.Delete(path);
+        }
+
         private static double Clamp(double value, double min, double max, double fallback)
         { return Double.IsNaN(value) || Double.IsInfinity(value) ? fallback : Math.Max(min, Math.Min(max, value)); }
     }
