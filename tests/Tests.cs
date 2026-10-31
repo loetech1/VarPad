@@ -68,6 +68,7 @@ internal static class Tests
             CultureInfoTest();
             InlineTests();
             QuotedVariableTests();
+            InlineBindingTests();
             StorageTests(args[0]);
             Console.WriteLine("PASS: " + count + " calculation and persistence checks."); return 0;
         }
@@ -153,11 +154,52 @@ internal static class Tests
         sheet = Calculator.EvaluateSheet("25“horses”\nhorses + 2\n5\"ans\"\n3\"pi\"", true);
         Equal(27, sheet.Lines[1].Value.Value, "smart quotes accepted");
         Check(sheet.Lines[2].Error != null && sheet.Lines[3].Error != null, "quoted names obey reserved-name rules");
-        foreach (string invalid in new[] { "25\"two horses\"", "25\"2horses\"", "25\"\"", "25\"horses", "25\"horses\"junk", "25\"horses\"+1" })
+        foreach (string invalid in new[] { "25\"two horses\"", "25\"2horses\"", "25\"\"", "25\"horses", "25\"horses\"junk" })
             Check(Calculator.EvaluateSheet(invalid, true).Lines[0].Error != null, "invalid quoted assignment rejected: " + invalid);
         sheet = Calculator.EvaluateSheet("25\"horses\"\n(1/0)\"horses\"\nhorses*2", true);
         Check(sheet.Lines[1].Error != null && sheet.Lines[2].Error != null, "failed quoted reassignment removes stale variable");
         sheet = Calculator.EvaluateSheet("5\"_herd2\" // comment\n_herd2+1", true);
         Equal(6, sheet.Lines[1].Value.Value, "underscores and inline comments");
+    }
+    private static void InlineBindingTests()
+    {
+        SheetResult sheet = Calculator.EvaluateSheet("3\"teabage\"+2=\nteabage*4", true);
+        Equal(5, sheet.Lines[0].Value.Value, "requested inline definition with trailing equals");
+        Equal(3, sheet.Variables["teabage"], "quoted name belongs to preceding value, not line total");
+        Equal(12, sheet.Lines[1].Value.Value, "inline variable available on next line");
+        Check(InlineAnswer.Suffix(sheet.Lines[0]) == " 5", "inline definition answer follows equals");
+        sheet = Calculator.EvaluateSheet("total=3\"tea\"+2\"sugar\"\ntea+sugar+total\n(tea+sugar)\"cups\"+cups", true);
+        Equal(5, sheet.Variables["total"], "name-first assignment can contain inline bindings");
+        Equal(3, sheet.Variables["tea"], "first operand bound");
+        Equal(2, sheet.Variables["sugar"], "second operand bound");
+        Equal(10, sheet.Lines[1].Value.Value, "all assignments persist together");
+        Equal(10, sheet.Lines[2].Value.Value, "grouped result bound and reused on same line");
+        sheet = Calculator.EvaluateSheet("3\"tea\"+tea=6\n3\"tea\"+2=99\n3\"tea\"+2 # memo", true);
+        Check(sheet.Lines[0].Matches == true && sheet.Lines[1].Matches == false, "written answers work with inline definitions");
+        Equal(5, sheet.Lines[2].Value.Value, "inline definitions support comments");
+        sheet = Calculator.EvaluateSheet("2+3\"x\"\n2*3\"y\"\n-2.5\"rate\"+1\n2^3\"power\"+1\n(2+3)\"group\"*2", true);
+        Equal(3, sheet.Variables["x"], "addition does not become part of named operand");
+        Equal(3, sheet.Variables["y"], "multiplication does not become part of named operand");
+        Equal(-2.5, sheet.Variables["rate"], "signed value retains its sign");
+        Equal(8, sheet.Variables["power"], "powers bind before quoted names");
+        Equal(5, sheet.Variables["group"], "parentheses name the whole calculation");
+        sheet = Calculator.EvaluateSheet("sum(3\"Tea\",2\"sugar\",tea)\n0xff\"hex\"+1e2\"hundred\"\n3\u201ctea\u201d+TEA", true);
+        Equal(8, sheet.Lines[0].Value.Value, "inline bindings in function arguments");
+        Equal(355, sheet.Lines[1].Value.Value, "hex and scientific notation bindings");
+        Equal(6, sheet.Lines[2].Value.Value, "smart quotes and case-insensitive reuse");
+        sheet = Calculator.EvaluateSheet("tea=3\ntea\"cups\"\ncups+1", true);
+        Equal(4, sheet.Lines[2].Value.Value, "naming an existing variable is not treated as prose");
+        sheet = Calculator.EvaluateSheet("x=7\nkeep=4\n3\"x\"+2\"new_name\"+1/0\nx+1\nkeep+1\nans", true);
+        Check(sheet.Lines[2].Error != null && sheet.Lines[3].Error != null, "failed line invalidates attempted reassignments");
+        Check(!sheet.Variables.ContainsKey("x") && !sheet.Variables.ContainsKey("new_name"), "failed calculation leaves no partial bindings");
+        Equal(5, sheet.Lines[4].Value.Value, "failed binding preserves unrelated variables");
+        sheet = Calculator.EvaluateSheet("3\"x\"+2=missing+1\nx+1", true);
+        Check(sheet.Lines[0].Error != null && sheet.Lines[1].Error != null, "invalid written answer does not commit bindings");
+        foreach (string bad in new[] { "3\"pi\"+2", "3\"ans\"+2", "3\"two words\"+2", "3\"\"+2", "3\"x", "\"not\"3", "3\"x\"+" }) Error(bad);
+        MathTest("3\"local\"+local", 6);
+        Check(Empty.Count == 0, "standalone evaluation does not mutate caller variables");
+        sheet = Calculator.EvaluateSheet("3\"tea\"+2=\ntea*2", true);
+        SheetResult changed = Calculator.EvaluateSheet("4\"tea\"+2=\ntea*2", true);
+        Equal(8, changed.Lines[1].Value.Value, "editing inline input recalculates dependent lines");
     }
 }

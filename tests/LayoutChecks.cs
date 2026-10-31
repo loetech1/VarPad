@@ -44,6 +44,12 @@ internal static class LayoutChecks
             Check(Math.Abs(Canvas.GetLeft(answer) - rect.Left - 2) < 1, "Inline answer must follow the equals sign");
             Check(Math.Abs(Canvas.GetTop(answer) - rect.Top) < 2, "Inline answer baseline must align");
             Check(answers.Children.Count == 2, "Assignments must not display duplicate results");
+            editor.Text = "3\"teabage\"+2=\nteabage*4"; Pump();
+            Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " 5"), "Inline variable definition must show the requested result");
+            Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " = 12"), "Following line must use the inline variable");
+            Check(((Button)view.Window.FindName("Variables")).Content.ToString() == "1 variable", "Inline binding must appear in variable count");
+            editor.Text = "4\"teabage\"+2=\nteabage*4"; Pump();
+            Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " 6") && answers.Children.OfType<TextBlock>().Any(t => t.Text == " = 16"), "Editing inline binding updates both results");
             Check(Grid.GetColumn(editor) == Grid.GetColumn(answers), "Answers must share the editor column");
             editor.Text = "a=8\nv=2\na+v="; Pump();
             Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " 10"), "Inline result must refresh after editing");
