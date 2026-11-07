@@ -42,7 +42,7 @@ Names ignore case, start with a letter or `_`, and can contain letters, digits a
 ![VarPad calculating materials, labour and contingency for a workshop estimate](docs/screenshots/estimates.png)
 
 - **Answers where you write.** Live results appear inline, with no separate answer column. Click a generated answer to copy it.
-- **Readable large numbers.** Inputs, answers and variable values automatically show thousands separators, such as `123,456,789`. Input commas are visual only, so typing, cursor movement, undo and saved formulas work as before. Type numbers without grouping commas; typed commas still separate function arguments. Copied numbers omit visual grouping so they paste safely into formulas.
+- **Readable large numbers.** Inputs, answers and variable values automatically show thousands separators, such as `123,456,789`. Input grouping marks occupy a full character cell for clear spacing. They are distinct from typed argument commas and are removed when saving, exporting or copying. Type numbers without grouping commas; typed commas still separate function arguments. Copied numbers omit visual grouping so they paste safely into formulas.
 - **A small desktop companion.** Compact toolbar, always on top, 6-pixel scrollbars and adjustable text size.
 - **Your preferred look.** Green text on charcoal by default; dark, light, amber and blue themes. Adjust background opacity while keeping text opaque.
 - **Notes that stay.** Multiple windows, local autosave, backup recovery, rename, duplicate, delete, import and export.

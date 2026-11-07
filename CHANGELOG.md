@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.3 — Properly spaced input grouping
+
+- Replace overlaid commas with comma-shaped grouping characters that occupy a full text cell.
+- Keep grouping distinct from typed function-argument commas; save, export and copy plain numeric source.
+- Preserve one-step undo/redo, caret placement after typing, wrapping and autocomplete.
+
 ## 1.4.2 — Input number grouping
 
 - Show automatic grouping commas in decimal inputs as you type, including variable assignments and function arguments.
