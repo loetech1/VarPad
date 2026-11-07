@@ -29,7 +29,7 @@ $writer.Write([UInt16]1); $writer.Write([UInt16]32); $writer.Write([UInt32]$png.
 $writer.Write($png.ToArray()); $writer.Dispose(); $png.Dispose(); $pen.Dispose(); $graphics.Dispose(); $bitmap.Dispose()
 
 $refs = @('System.dll','System.Core.dll','System.Xml.dll','System.Xaml.dll','WPF\WindowsBase.dll','WPF\PresentationCore.dll','WPF\PresentationFramework.dll') | ForEach-Object { '/r:' + (Join-Path $framework $_) }
-$sources = @('App.cs','Calculator.cs','InlineAnswer.cs','Storage.cs') | ForEach-Object { Join-Path $root "src\$_" }
+$sources = @('App.cs','Calculator.cs','Completion.cs','InputGrouping.cs','InlineAnswer.cs','Storage.cs') | ForEach-Object { Join-Path $root "src\$_" }
 $appArgs = @('/nologo','/target:winexe','/platform:anycpu','/optimize+',('/out:' + (Join-Path $out 'VarPad.exe')),('/win32icon:' + $iconFile),('/win32manifest:' + (Join-Path $root 'src\app.manifest')),('/resource:' + (Join-Path $root 'src\MainWindow.xaml') + ',MainWindow.xaml'),('/resource:' + (Join-Path $root 'src\Help.txt') + ',Help.txt'),('/resource:' + $iconFile + ',app.ico')) + $refs + $sources
 & $compiler @appArgs
 if ($LASTEXITCODE -ne 0) { throw 'App compilation failed.' }
@@ -37,7 +37,7 @@ Copy-Item -LiteralPath (Join-Path $root 'src\VarPad.exe.config') -Destination $o
 Copy-Item -LiteralPath $iconFile -Destination $out
 
 if (-not $SkipTests) {
-    $testArgs = @('/nologo','/target:exe',('/out:' + (Join-Path $build 'Tests.exe')),'/r:System.Core.dll','/r:System.Xml.dll',(Join-Path $root 'src\Calculator.cs'),(Join-Path $root 'src\InlineAnswer.cs'),(Join-Path $root 'src\Storage.cs'),(Join-Path $root 'tests\Tests.cs'))
+    $testArgs = @('/nologo','/target:exe',('/out:' + (Join-Path $build 'Tests.exe')),'/r:System.Core.dll','/r:System.Xml.dll',(Join-Path $root 'src\Calculator.cs'),(Join-Path $root 'src\Completion.cs'),(Join-Path $root 'src\InputGrouping.cs'),(Join-Path $root 'src\InlineAnswer.cs'),(Join-Path $root 'src\Storage.cs'),(Join-Path $root 'tests\Tests.cs'))
     & $compiler @testArgs
     if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed.' }
     & (Join-Path $build 'Tests.exe') (Join-Path $build 'test-notes')
