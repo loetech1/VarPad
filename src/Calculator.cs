@@ -71,7 +71,7 @@ namespace VarPad
             {
                 LineResult line = new LineResult { Source = source };
                 sheet.Lines.Add(line);
-                string expression = source.Trim().Replace('\u201c', '"').Replace('\u201d', '"');
+                string expression = InputGrouping.Plain(source).Trim().Replace('\u201c', '"').Replace('\u201d', '"');
                 int comment = expression.IndexOf('#');
                 int slashComment = expression.IndexOf("//", StringComparison.Ordinal);
                 if (slashComment >= 0 && (comment < 0 || slashComment < comment)) comment = slashComment;
@@ -143,6 +143,7 @@ namespace VarPad
 
         public static double Evaluate(string expression, IDictionary<string, double> variables, bool degrees)
         {
+            expression = InputGrouping.Plain(expression);
             if (expression.Length > MaxLineLength) throw new CalculationException("Line is too long");
             return new Parser(expression, new Dictionary<string, double>(variables, StringComparer.OrdinalIgnoreCase), degrees).Run();
         }

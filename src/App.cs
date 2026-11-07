@@ -18,8 +18,8 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("VarPad")]
 [assembly: AssemblyDescription("A little space to think in numbers.")]
-[assembly: AssemblyVersion("1.4.2.0")]
-[assembly: AssemblyFileVersion("1.4.2.0")]
+[assembly: AssemblyVersion("1.4.3.0")]
+[assembly: AssemblyFileVersion("1.4.3.0")]
 
 namespace VarPad
 {
@@ -114,7 +114,7 @@ namespace VarPad
         internal bool PreserveOpen;
         private readonly CalcApp app;
         private readonly TextBox editor, title;
-        private readonly Canvas results, numbers, inputCommas;
+        private readonly Canvas results, numbers;
         private readonly TextBlock status;
         private readonly DispatcherTimer saveTimer, calculationTimer;
         private SheetResult sheet = new SheetResult();
@@ -129,12 +129,32 @@ namespace VarPad
         private readonly Border completionBorder;
         private CompletionMatch completionMatch;
         private bool completionPending, completing;
+        private bool formattingInput;
+
+        private void FormatInput()
+        {
+            string before = editor.Text, after = InputGrouping.Display(before);
+            if (before == after) return;
+            int selection = InputGrouping.MapPosition(before, editor.SelectionStart, after);
+            int end = InputGrouping.MapPosition(before, editor.SelectionStart + editor.SelectionLength, after);
+            int first = 0, tail = 0;
+            while (first < before.Length && first < after.Length && before[first] == after[first]) first++;
+            while (tail < before.Length - first && tail < after.Length - first && before[before.Length - tail - 1] == after[after.Length - tail - 1]) tail++;
+            formattingInput = true;
+            editor.BeginChange();
+            try { editor.Select(first, before.Length - first - tail); editor.SelectedText = after.Substring(first, after.Length - first - tail); editor.Select(selection, end - selection); }
+            finally { editor.EndChange(); formattingInput = false; }
+        }
 
         internal NoteWindow(CalcApp app, Note note)
         {
             this.app = app; Note = note;
             using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("MainWindow.xaml")) Window = (Window)XamlReader.Load(stream);
             editor = Find<TextBox>("Editor"); title = Find<TextBox>("NoteTitle");
+            editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, delegate(object sender, ExecutedRoutedEventArgs e)
+            { if (editor.SelectionLength > 0) Copy(InputGrouping.Plain(editor.SelectedText)); e.Handled = true; }));
+            editor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Cut, delegate(object sender, ExecutedRoutedEventArgs e)
+            { if (editor.SelectionLength > 0) { try { Clipboard.SetText(InputGrouping.Plain(editor.SelectedText)); editor.SelectedText = ""; } catch (System.Runtime.InteropServices.COMException) { status.Text = "Clipboard is busy · try again"; } } e.Handled = true; }));
             completionList = new ListBox { DisplayMemberPath = "Label", Focusable = false, IsTabStop = false,
                 FontFamily = new FontFamily("Consolas"), FontSize = 13, MaxHeight = 190, MinWidth = 240,
                 BorderThickness = new Thickness(0), Background = Brushes.Transparent };
@@ -153,7 +173,6 @@ namespace VarPad
                 AcceptCompletion(); e.Handled = true;
             };
             results = Find<Canvas>("Results"); numbers = Find<Canvas>("Numbers"); status = Find<TextBlock>("Status");
-            inputCommas = Find<Canvas>("InputCommas");
             Window.Width = note.Width; Window.Height = note.Height;
             // Keep restored windows reachable after monitor changes.
             double left = note.Left < -10000 || note.Left == -1 ? SystemParameters.WorkArea.Left + 80 + app.OpenNotes.Count * 28 : note.Left;
@@ -163,7 +182,7 @@ namespace VarPad
             Window.Title = note.Title + " · VarPad";
             using (Stream icon = Assembly.GetExecutingAssembly().GetManifestResourceStream("app.ico"))
                 Window.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(icon, System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
-            title.Text = note.Title; editor.Text = note.Text; editor.FontSize = note.FontSize;
+            title.Text = note.Title; editor.Text = InputGrouping.Display(note.Text); editor.FontSize = note.FontSize;
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
             saveTimer.Tick += delegate { saveTimer.Stop(); Save(); };
             calculationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
@@ -176,7 +195,7 @@ namespace VarPad
                     completionPending = false;
                 }));
             };
-            editor.TextChanged += delegate { if (ready) { CloseCompletion(); completionPending = !completing && editor.IsKeyboardFocusWithin; results.Children.Clear(); inputCommas.Children.Clear(); calculationTimer.Stop(); calculationTimer.Start(); Dirty(); } };
+            editor.TextChanged += delegate(object sender, TextChangedEventArgs e) { if (ready && !formattingInput) { if (e.UndoAction != UndoAction.Undo && e.UndoAction != UndoAction.Redo) FormatInput(); CloseCompletion(); completionPending = !completing && editor.IsKeyboardFocusWithin; results.Children.Clear(); calculationTimer.Stop(); calculationTimer.Start(); Dirty(); } };
             title.TextChanged += delegate { if (ready) { Note.Title = String.IsNullOrWhiteSpace(title.Text) ? "Untitled" : title.Text.Trim(); Window.Title = Note.Title + " · VarPad"; Dirty(); } };
             editor.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(delegate { CloseCompletion(); DrawResults(); }));
             editor.SelectionChanged += delegate { CloseCompletion(); if (ready) DrawResults(); };
@@ -256,14 +275,14 @@ namespace VarPad
         private void Dirty()
         {
             if (deleted) return;
-            Note.Text = editor.Text;
+            Note.Text = InputGrouping.Plain(editor.Text);
             status.Text = "Saving…";
             saveTimer.Stop(); saveTimer.Start();
         }
         private bool Save()
         {
             if (deleted) return true;
-            Note.Text = editor.Text;
+            Note.Text = InputGrouping.Plain(editor.Text);
             if (Window.WindowState == WindowState.Normal)
             { Note.Width = Window.Width; Note.Height = Window.Height; Note.Left = Window.Left; Note.Top = Window.Top; }
             try { app.Store.Save(Note); status.Text = "Saved on this device"; status.Foreground = muted; status.ToolTip = null; return true; }
@@ -322,28 +341,12 @@ namespace VarPad
                 string renderKey = String.Join("|", new object[] { renderRevision, first, last, current, editor.HorizontalOffset, editor.VerticalOffset, editor.ActualWidth, editor.ActualHeight, editor.ExtentWidth, editor.ExtentHeight, editor.ViewportWidth, editor.ViewportHeight });
                 if (lastRenderKey == renderKey) return;
                 lastRenderKey = renderKey;
-                results.Children.Clear(); numbers.Children.Clear(); inputCommas.Children.Clear();
+                results.Children.Clear(); numbers.Children.Clear();
                 for (int i = first; i <= last; i++)
                 {
                     int charIndex = lineStarts[i];
                     Rect rect = editor.GetRectFromCharacterIndex(charIndex);
                     LineResult lineResult = sheet.Lines[i];
-                    if (!lineResult.IsMemo)
-                    {
-                        foreach (int separator in InputGrouping.Separators(lineResult.Source))
-                        {
-                            Rect digit = editor.GetRectFromCharacterIndex(charIndex + separator - 1, true);
-                            if (digit.IsEmpty || digit.Bottom < 0 || digit.Top > editor.ViewportHeight) continue;
-                            // A comma sits in the gap below the digits' baseline.
-                            // Adorn the source without changing text or caret indices.
-                            TextBlock comma = new TextBlock { Text = ",", FontFamily = editor.FontFamily,
-                                FontSize = editor.FontSize, Foreground = ink, IsHitTestVisible = false };
-                            comma.Measure(new Size(Double.PositiveInfinity, Double.PositiveInfinity));
-                            Canvas.SetLeft(comma, digit.Left - comma.DesiredSize.Width / 2);
-                            Canvas.SetTop(comma, digit.Top + 1);
-                            inputCommas.Children.Add(comma);
-                        }
-                    }
                     if (!rect.IsEmpty)
                     {
                         TextBlock num = new TextBlock { Text = (i + 1).ToString("00"), FontFamily = new FontFamily("Consolas"), FontSize = 11, Foreground = i == current ? ink : muted, Opacity = i == current ? 1 : .55 };
@@ -382,7 +385,6 @@ namespace VarPad
                     results.Clip = new RectangleGeometry(new Rect(0, 0,
                         Math.Max(0, editor.ActualWidth - (scroll.ComputedVerticalScrollBarVisibility == Visibility.Visible ? 6 : 0)),
                         Math.Max(0, editor.ActualHeight - (scroll.ComputedHorizontalScrollBarVisibility == Visibility.Visible ? 6 : 0))));
-                    inputCommas.Clip = results.Clip;
                 }
             }
             catch (ArgumentOutOfRangeException) { /* Text layout can lag one dispatcher frame while typing. */ }
@@ -418,7 +420,7 @@ namespace VarPad
             menu.Items.Add(new Separator());
             Item(menu, "Import text…   Ctrl+O", Import);
             Item(menu, "Export this note…   Ctrl+S", Export);
-            Item(menu, "Duplicate note", delegate { app.NewNote(Note.Title + " (copy)", editor.Text); });
+            Item(menu, "Duplicate note", delegate { app.NewNote(Note.Title + " (copy)", InputGrouping.Plain(editor.Text)); });
             Item(menu, "Delete this note...", ConfirmDelete);
             menu.Items.Add(new Separator());
             Item(menu, "Quit all windows   Ctrl+Q", app.Quit);
@@ -489,6 +491,14 @@ namespace VarPad
         private void KeyDown(object sender, KeyEventArgs e)
         {
             ModifierKeys mod = Keyboard.Modifiers;
+            if (editor.IsKeyboardFocusWithin && mod == ModifierKeys.None && editor.SelectionLength == 0)
+            {
+                int caret = editor.CaretIndex;
+                if (e.Key == Key.Back && caret > 1 && editor.Text[caret - 1] == InputGrouping.Mark)
+                { editor.Select(caret - 2, 2); editor.SelectedText = ""; e.Handled = true; return; }
+                if (e.Key == Key.Delete && caret + 1 < editor.Text.Length && editor.Text[caret] == InputGrouping.Mark)
+                { editor.Select(caret, 2); editor.SelectedText = ""; e.Handled = true; return; }
+            }
             if (editor.IsKeyboardFocusWithin && HandleCompletionKey(e.Key, mod)) { e.Handled = true; return; }
             if (e.Key == Key.Return && mod == ModifierKeys.None && editor.IsKeyboardFocusWithin && TryClearCommand())
             { e.Handled = true; return; }
@@ -613,7 +623,7 @@ namespace VarPad
             string safeName = String.Join("_", Note.Title.Split(Path.GetInvalidFileNameChars()));
             SaveFileDialog dialog = new SaveFileDialog { Filter = "Text note (*.txt)|*.txt", FileName = safeName + ".txt", DefaultExt = ".txt", AddExtension = true };
             if (dialog.ShowDialog(Window) != true) return;
-            try { File.WriteAllText(dialog.FileName, editor.Text, new UTF8Encoding(false)); status.Text = "Exported note"; }
+            try { File.WriteAllText(dialog.FileName, InputGrouping.Plain(editor.Text), new UTF8Encoding(false)); status.Text = "Exported note"; }
             catch (Exception ex) { MessageBox.Show(Window, ex.Message, "Could not export"); }
         }
         private void ShowHelp()

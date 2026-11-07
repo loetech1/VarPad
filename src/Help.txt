@@ -128,5 +128,5 @@ significant digits); results display 12 significant
 digits. Display rounding never changes stored values.
 This is not an arbitrary-precision or symbolic solver.
 
-VarPad 1.4.2 · Independent Windows application.
+VarPad 1.4.3 · Independent Windows application.
 Inspired by the notepad-calculator workflow.
