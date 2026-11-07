@@ -86,6 +86,9 @@ Bitwise inputs must be exact integers, up to 2^53−1
 in magnitude. Shifts accept 0–52. ^ means power.
 
 SHORTCUTS
+Tab                   complete the selected suggestion
+Up / Down             choose a suggestion while the list is open
+Ctrl+Space / Esc      show / dismiss suggestions
 Ctrl+N                new note window
 Ctrl+O                import a text note
 Ctrl+S                export a text note
@@ -96,6 +99,12 @@ Ctrl+W                close this window (keeps note)
 Ctrl+Q                quit and restore open notes later
 Ctrl+Z / Ctrl+Y       undo / redo
 F1                    this reference
+
+Start typing a variable, constant or function to see suggestions.
+Names defined earlier in this note are offered, including quoted
+variables. Functions add () with the cursor inside; existing
+parentheses are kept. Enter still starts a new line, and Tab
+inserts a normal tab when there is no match. Ctrl+Z undoes completion.
 
 Notes menu reopens closed notes. To permanently delete a note,
 open it and choose Notes > Delete this note, then confirm.
@@ -110,10 +119,14 @@ a shortened answer or error to see its full value.
 Text stays opaque when the background is transparent.
 
 NUMERIC PRECISION
+Inputs, answers and variable values show thousands separators: 123,456,789.
+Input grouping is visual only: saved text, selection and undo are unchanged.
+Type numbers without grouping commas. Copied results omit grouping
+so they paste into formulas; commas separate function arguments.
 Calculations use IEEE 754 double precision (about 15
 significant digits); results display 12 significant
 digits. Display rounding never changes stored values.
 This is not an arbitrary-precision or symbolic solver.
 
-VarPad 1.3.0 · Independent Windows application.
+VarPad 1.4.2 · Independent Windows application.
 Inspired by the notepad-calculator workflow.

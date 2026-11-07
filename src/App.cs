@@ -18,8 +18,8 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("VarPad")]
 [assembly: AssemblyDescription("A little space to think in numbers.")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.4.2.0")]
+[assembly: AssemblyFileVersion("1.4.2.0")]
 
 namespace VarPad
 {
@@ -114,7 +114,7 @@ namespace VarPad
         internal bool PreserveOpen;
         private readonly CalcApp app;
         private readonly TextBox editor, title;
-        private readonly Canvas results, numbers;
+        private readonly Canvas results, numbers, inputCommas;
         private readonly TextBlock status;
         private readonly DispatcherTimer saveTimer, calculationTimer;
         private SheetResult sheet = new SheetResult();
@@ -124,13 +124,36 @@ namespace VarPad
         private string lastRenderKey;
         private bool ready, drawing, deleted;
         private Brush ink, muted, warning;
+        private readonly Popup completionPopup;
+        private readonly ListBox completionList;
+        private readonly Border completionBorder;
+        private CompletionMatch completionMatch;
+        private bool completionPending, completing;
 
         internal NoteWindow(CalcApp app, Note note)
         {
             this.app = app; Note = note;
             using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("MainWindow.xaml")) Window = (Window)XamlReader.Load(stream);
             editor = Find<TextBox>("Editor"); title = Find<TextBox>("NoteTitle");
+            completionList = new ListBox { DisplayMemberPath = "Label", Focusable = false, IsTabStop = false,
+                FontFamily = new FontFamily("Consolas"), FontSize = 13, MaxHeight = 190, MinWidth = 240,
+                BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+            ScrollViewer.SetHorizontalScrollBarVisibility(completionList, ScrollBarVisibility.Disabled);
+            completionBorder = new Border { Child = completionList, BorderThickness = new Thickness(1), Padding = new Thickness(4), CornerRadius = new CornerRadius(5) };
+            completionBorder.Resources = Window.Resources;
+            completionList.ItemContainerStyle = (Style)Window.Resources["CompletionItem"];
+            completionList.Resources.Add(typeof(ScrollViewer), Window.Resources["SlimScrollViewer"]);
+            completionPopup = new Popup { Child = completionBorder, PlacementTarget = editor, Placement = PlacementMode.Relative,
+                AllowsTransparency = true, StaysOpen = true, Focusable = false };
+            completionList.PreviewMouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
+            {
+                ListBoxItem item = ItemsControl.ContainerFromElement(completionList, e.OriginalSource as DependencyObject) as ListBoxItem;
+                if (item == null) return;
+                completionList.SelectedItem = item.Content;
+                AcceptCompletion(); e.Handled = true;
+            };
             results = Find<Canvas>("Results"); numbers = Find<Canvas>("Numbers"); status = Find<TextBlock>("Status");
+            inputCommas = Find<Canvas>("InputCommas");
             Window.Width = note.Width; Window.Height = note.Height;
             // Keep restored windows reachable after monitor changes.
             double left = note.Left < -10000 || note.Left == -1 ? SystemParameters.WorkArea.Left + 80 + app.OpenNotes.Count * 28 : note.Left;
@@ -144,18 +167,30 @@ namespace VarPad
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
             saveTimer.Tick += delegate { saveTimer.Stop(); Save(); };
             calculationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
-            calculationTimer.Tick += delegate { calculationTimer.Stop(); Recalculate(); };
-            editor.TextChanged += delegate { if (ready) { results.Children.Clear(); calculationTimer.Stop(); calculationTimer.Start(); Dirty(); } };
+            calculationTimer.Tick += delegate
+            {
+                calculationTimer.Stop(); Recalculate();
+                Window.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(delegate
+                {
+                    if (completionPending && editor.IsKeyboardFocusWithin) ShowCompletion(false);
+                    completionPending = false;
+                }));
+            };
+            editor.TextChanged += delegate { if (ready) { CloseCompletion(); completionPending = !completing && editor.IsKeyboardFocusWithin; results.Children.Clear(); inputCommas.Children.Clear(); calculationTimer.Stop(); calculationTimer.Start(); Dirty(); } };
             title.TextChanged += delegate { if (ready) { Note.Title = String.IsNullOrWhiteSpace(title.Text) ? "Untitled" : title.Text.Trim(); Window.Title = Note.Title + " · VarPad"; Dirty(); } };
-            editor.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(delegate { DrawResults(); }));
-            editor.SelectionChanged += delegate { if (ready) DrawResults(); };
+            editor.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(delegate { CloseCompletion(); DrawResults(); }));
+            editor.SelectionChanged += delegate { CloseCompletion(); if (ready) DrawResults(); };
+            editor.LostKeyboardFocus += delegate { completionPending = false; CloseCompletion(); };
+            editor.PreviewMouseDown += delegate { completionPending = false; CloseCompletion(); };
+            Window.Deactivated += delegate { completionPending = false; CloseCompletion(); };
             editor.LayoutUpdated += delegate { DrawResults(); };
-            Window.SizeChanged += delegate { DrawResults(); if (ready) Dirty(); };
+            Window.SizeChanged += delegate { CloseCompletion(); DrawResults(); if (ready) Dirty(); };
             editor.SizeChanged += delegate { if (ready && Note.WrapText) UpdateResultPadding(); DrawResults(); };
-            Window.LocationChanged += delegate { if (ready) Dirty(); };
+            Window.LocationChanged += delegate { CloseCompletion(); if (ready) Dirty(); };
             Window.PreviewKeyDown += KeyDown;
             Window.Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e)
             {
+                completionPending = false; CloseCompletion();
                 Note.WasOpen = PreserveOpen;
                 saveTimer.Stop(); calculationTimer.Stop();
                 if (deleted) return;
@@ -204,6 +239,7 @@ namespace VarPad
             if (Note.Theme == "Dark") foreground = "#DEEBE1";
             if (Note.Theme == "Light") { foreground = "#235332"; background = "#F2F3ED"; secondary = "#637466"; line = "#CCD5CD"; }
             ink = Brush(foreground); muted = Brush(secondary); warning = Brush(Note.Theme == "Light" ? "#A03A27" : "#F1B293");
+            completionBorder.Background = Brush(background); completionBorder.BorderBrush = Brush(line); completionList.Foreground = ink;
             Window.Resources["Ink"] = ink; Window.Resources["Muted"] = muted; Window.Resources["Line"] = Brush(line);
             SolidColorBrush fill = Brush(background); fill.Opacity = Note.BackgroundOpacity;
             Find<Border>("Shell").Background = fill;
@@ -286,12 +322,28 @@ namespace VarPad
                 string renderKey = String.Join("|", new object[] { renderRevision, first, last, current, editor.HorizontalOffset, editor.VerticalOffset, editor.ActualWidth, editor.ActualHeight, editor.ExtentWidth, editor.ExtentHeight, editor.ViewportWidth, editor.ViewportHeight });
                 if (lastRenderKey == renderKey) return;
                 lastRenderKey = renderKey;
-                results.Children.Clear(); numbers.Children.Clear();
+                results.Children.Clear(); numbers.Children.Clear(); inputCommas.Children.Clear();
                 for (int i = first; i <= last; i++)
                 {
                     int charIndex = lineStarts[i];
                     Rect rect = editor.GetRectFromCharacterIndex(charIndex);
                     LineResult lineResult = sheet.Lines[i];
+                    if (!lineResult.IsMemo)
+                    {
+                        foreach (int separator in InputGrouping.Separators(lineResult.Source))
+                        {
+                            Rect digit = editor.GetRectFromCharacterIndex(charIndex + separator - 1, true);
+                            if (digit.IsEmpty || digit.Bottom < 0 || digit.Top > editor.ViewportHeight) continue;
+                            // A comma sits in the gap below the digits' baseline.
+                            // Adorn the source without changing text or caret indices.
+                            TextBlock comma = new TextBlock { Text = ",", FontFamily = editor.FontFamily,
+                                FontSize = editor.FontSize, Foreground = ink, IsHitTestVisible = false };
+                            comma.Measure(new Size(Double.PositiveInfinity, Double.PositiveInfinity));
+                            Canvas.SetLeft(comma, digit.Left - comma.DesiredSize.Width / 2);
+                            Canvas.SetTop(comma, digit.Top + 1);
+                            inputCommas.Children.Add(comma);
+                        }
+                    }
                     if (!rect.IsEmpty)
                     {
                         TextBlock num = new TextBlock { Text = (i + 1).ToString("00"), FontFamily = new FontFamily("Consolas"), FontSize = 11, Foreground = i == current ? ink : muted, Opacity = i == current ? 1 : .55 };
@@ -315,7 +367,7 @@ namespace VarPad
                     if (lineResult.Value.HasValue)
                     {
                         double value = lineResult.Value.Value;
-                        result.MouseLeftButtonUp += delegate { Copy(Calculator.Format(value)); };
+                        result.MouseLeftButtonUp += delegate { Copy(Calculator.FormatInput(value)); };
                     }
                     if (Note.WrapText)
                     {
@@ -326,9 +378,12 @@ namespace VarPad
                 }
                 ScrollViewer scroll = editor.Template.FindName("PART_ContentHost", editor) as ScrollViewer;
                 if (scroll != null)
+                {
                     results.Clip = new RectangleGeometry(new Rect(0, 0,
                         Math.Max(0, editor.ActualWidth - (scroll.ComputedVerticalScrollBarVisibility == Visibility.Visible ? 6 : 0)),
                         Math.Max(0, editor.ActualHeight - (scroll.ComputedHorizontalScrollBarVisibility == Visibility.Visible ? 6 : 0))));
+                    inputCommas.Clip = results.Clip;
+                }
             }
             catch (ArgumentOutOfRangeException) { /* Text layout can lag one dispatcher frame while typing. */ }
             finally { drawing = false; }
@@ -342,7 +397,7 @@ namespace VarPad
         {
             Recalculate();
             int line = LogicalLineAt(editor.CaretIndex);
-            if (line >= 0 && line < sheet.Lines.Count && sheet.Lines[line].Value.HasValue) Copy(Calculator.Format(sheet.Lines[line].Value.Value));
+            if (line >= 0 && line < sheet.Lines.Count && sheet.Lines[line].Value.HasValue) Copy(Calculator.FormatInput(sheet.Lines[line].Value.Value));
         }
         private ContextMenu Menu(string button)
         {
@@ -420,7 +475,7 @@ namespace VarPad
             ContextMenu menu = Menu("Variables");
             if (sheet.Variables.Count == 0) menu.Items.Add(new MenuItem { Header = "Try a = 3 on its own line", IsEnabled = false });
             foreach (KeyValuePair<string, double> pair in sheet.Variables)
-            { string value = Calculator.Format(pair.Value); Item(menu, pair.Key + " = " + value, delegate { Copy(value); }); }
+            { double value = pair.Value; Item(menu, pair.Key + " = " + Calculator.Format(value), delegate { Copy(Calculator.FormatInput(value)); }); }
             menu.IsOpen = true;
         }
         private void Zoom(int change) { Note.FontSize = Math.Max(12, Math.Min(28, Note.FontSize + change)); ApplyAppearance(); Recalculate(); Dirty(); }
@@ -434,6 +489,7 @@ namespace VarPad
         private void KeyDown(object sender, KeyEventArgs e)
         {
             ModifierKeys mod = Keyboard.Modifiers;
+            if (editor.IsKeyboardFocusWithin && HandleCompletionKey(e.Key, mod)) { e.Handled = true; return; }
             if (e.Key == Key.Return && mod == ModifierKeys.None && editor.IsKeyboardFocusWithin && TryClearCommand())
             { e.Handled = true; return; }
             if (e.Key == Key.F1) { ShowHelp(); e.Handled = true; return; }
@@ -449,6 +505,76 @@ namespace VarPad
             else if (e.Key == Key.Subtract || e.Key == Key.OemMinus) Zoom(-1);
             else return;
             e.Handled = true;
+        }
+        private void CloseCompletion()
+        {
+            completionPopup.IsOpen = false;
+            completionMatch = null;
+        }
+        internal bool ShowCompletion(bool explicitRequest)
+        {
+            CloseCompletion();
+            if (editor.SelectionLength != 0) return false;
+            CompletionMatch match = Completion.Find(editor.Text, editor.CaretIndex, Note.Degrees, explicitRequest);
+            if (match == null) return false;
+            if (calculationTimer.IsEnabled) { calculationTimer.Stop(); Recalculate(); }
+            editor.UpdateLayout();
+            Rect caret = editor.GetRectFromCharacterIndex(editor.CaretIndex);
+            if (caret.IsEmpty) { CloseCompletion(); return false; }
+            completionMatch = match;
+            completionList.ItemsSource = match.Items;
+            completionList.SelectedIndex = 0;
+            completionPopup.HorizontalOffset = Math.Max(0, Math.Min(caret.Left, editor.ActualWidth - 255));
+            completionPopup.VerticalOffset = caret.Bottom + 3;
+            completionBorder.Opacity = Window.Opacity;
+            completionPopup.IsOpen = true;
+            completionList.ScrollIntoView(completionList.SelectedItem);
+            return true;
+        }
+        internal bool AcceptCompletion()
+        {
+            CompletionItem item = completionList.SelectedItem as CompletionItem;
+            if (completionMatch == null || item == null || editor.SelectionLength != 0) return false;
+            CompletionMatch match = completionMatch;
+            int offset;
+            string insertion = Completion.Insertion(editor.Text, match, item, out offset);
+            CloseCompletion(); completionPending = false; completing = true;
+            editor.BeginChange();
+            try
+            {
+                editor.Select(match.Start, match.Length);
+                editor.SelectedText = insertion;
+                editor.CaretIndex = match.Start + offset;
+            }
+            finally { editor.EndChange(); completing = false; }
+            return true;
+        }
+        internal bool HandleCompletionKey(Key key, ModifierKeys modifiers)
+        {
+            if (key == Key.Space && modifiers == ModifierKeys.Control) { completionPending = false; ShowCompletion(true); return true; }
+            if (key == Key.Tab && modifiers == ModifierKeys.None)
+            {
+                completionPending = false;
+                // Refresh synchronously when Tab beats the calculation debounce.
+                if (!completionPopup.IsOpen) ShowCompletion(false);
+                return AcceptCompletion();
+            }
+            if (completionPopup.IsOpen && modifiers == ModifierKeys.None && (key == Key.Up || key == Key.Down))
+            {
+                int count = completionList.Items.Count;
+                completionList.SelectedIndex = (completionList.SelectedIndex + (key == Key.Down ? 1 : count - 1)) % count;
+                completionList.ScrollIntoView(completionList.SelectedItem);
+                return true;
+            }
+            if (key == Key.Escape)
+            {
+                bool visible = completionPopup.IsOpen || completionPending;
+                completionPending = false; CloseCompletion(); return visible;
+            }
+            if (key == Key.Return || key == Key.Left || key == Key.Right || key == Key.Home || key == Key.End ||
+                key == Key.Up || key == Key.Down || key == Key.PageUp || key == Key.PageDown || key == Key.Tab || modifiers != ModifierKeys.None)
+            { completionPending = false; CloseCompletion(); }
+            return false;
         }
         internal bool TryClearCommand()
         {

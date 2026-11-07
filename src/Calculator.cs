@@ -36,6 +36,7 @@ namespace VarPad
     public static class Calculator
     {
         public const int MaxLineLength = 4096;
+        internal static IEnumerable<string> FunctionNames { get { return Parser.FunctionNames; } }
         private static readonly Regex Assignment = new Regex(@"^([a-zA-Z_][a-zA-Z_0-9]*)\s*=(?!=)(.*)$");
         private static readonly Regex QuotedAssignment = new Regex(@"^(.+?)\s*""([a-zA-Z_][a-zA-Z_0-9]*)""\s*$");
         private static readonly Regex QuotedName = new Regex(@"""([a-zA-Z_][a-zA-Z_0-9]*)""");
@@ -43,6 +44,20 @@ namespace VarPad
         private static readonly HashSet<string> Reserved = new HashSet<string>(new[] { "pi", "e", "phi", "tau", "ans", "mod", "xor", "and", "or", "not" }, StringComparer.OrdinalIgnoreCase);
 
         public static string Format(double value)
+        {
+            string text = FormatInput(value);
+            // Keep scientific notation and the existing significant-digit
+            // rounding. Group only the integer part of ordinary decimals.
+            if (text.IndexOfAny(new[] { 'e', 'E' }) >= 0) return text;
+            int first = text.StartsWith("-", StringComparison.Ordinal) ? 1 : 0;
+            int end = text.IndexOf('.');
+            if (end < 0) end = text.Length;
+            for (int position = end - 3; position > first; position -= 3)
+                text = text.Insert(position, ",");
+            return text;
+        }
+
+        public static string FormatInput(double value)
         {
             if (Math.Abs(value) < 1e-14 && value != 0) return value.ToString("G12", CultureInfo.InvariantCulture);
             return (value == 0 ? 0 : value).ToString("G12", CultureInfo.InvariantCulture);
