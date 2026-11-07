@@ -78,11 +78,12 @@ internal static class LayoutChecks
             view.ToggleWrap();
             editor.Text = "a=3\nv=2\na+v=\na+v"; Pump();
             Canvas answers = (Canvas)view.Window.FindName("Results");
-            Canvas commas = (Canvas)view.Window.FindName("InputCommas");
             string groupedInput = "horses=123456789\nfeed=12345.67\nmax(10000,20000)=\n# 123456 is a note\n3\"herd123456\"\nhorses+feed=";
             editor.Text = groupedInput; editor.CaretIndex = 9; Pump();
-            Check(commas.Children.Count == 5, "Input displays five grouping commas without changing comments or quoted names");
-            Check(editor.Text == groupedInput && editor.CaretIndex == 9, "Input grouping preserves source text and caret");
+            Check(editor.Text.Count(c => c == InputGrouping.Mark) == 5, "Input displays five spaced grouping commas");
+            Check(InputGrouping.Plain(editor.Text) == groupedInput && editor.CaretIndex == 9, "Input grouping preserves source text and caret");
+            Rect beforeComma = editor.GetRectFromCharacterIndex(10), afterComma = editor.GetRectFromCharacterIndex(11);
+            Check(afterComma.Left - beforeComma.Left > 5, "Grouping separator reserves a full character cell");
             Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " 20,000"), "Function argument commas retain their calculation meaning");
             if (args.Length > 1)
             {
@@ -93,10 +94,18 @@ internal static class LayoutChecks
                 using (FileStream image = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "input-grouping-preview.png"))) encoder.Save(image);
             }
             editor.Select(9, 0); editor.SelectedText = "0"; Pump();
-            editor.Undo(); Pump(); Check(editor.Text == groupedInput, "Input grouping does not add undo operations");
+            editor.Undo(); Pump(); Check(InputGrouping.Plain(editor.Text) == groupedInput, "Input grouping does not add undo operations");
             view.ToggleWrap(); Pump();
-            Check(commas.Children.Count == 5 && editor.Text == groupedInput, "Input grouping works with wrapping");
+            Check(editor.Text.Count(c => c == InputGrouping.Mark) == 5 && InputGrouping.Plain(editor.Text) == groupedInput, "Input grouping works with wrapping");
             view.ToggleWrap(); editor.Text = "a=3\nv=2\na+v=\na+v"; Pump();
+            editor.Text = "999"; editor.CaretIndex = 3; editor.SelectedText = "9"; Pump();
+            Check(editor.Text == "9\u201a999" && editor.SelectionStart == 4 && editor.SelectedText == "9", "Regrouping maps the inserted selection to the correct digit");
+            editor.Undo(); Pump(); Check(editor.Text == "999", "Regrouped typing undoes in one step");
+            editor.Redo(); Pump(); Check(editor.Text == "9\u201a999", "Redo restores grouped typing");
+            editor.Text = "horses=123456\nhor"; editor.CaretIndex = editor.Text.Length;
+            view.HandleCompletionKey(Key.Tab, ModifierKeys.None);
+            Check(editor.Text.EndsWith("\nhorses"), "Autocomplete works after a grouped variable definition");
+            editor.Text = "a=3\nv=2\na+v=\na+v"; Pump();
             TextBlock answer = answers.Children.OfType<TextBlock>().First(t => t.Text == " 5");
             int end = editor.GetCharacterIndexFromLineIndex(2) + 4;
             Rect rect = editor.GetRectFromCharacterIndex(end);

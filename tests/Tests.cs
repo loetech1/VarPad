@@ -52,6 +52,11 @@ internal static class Tests
                 Check(!InputGrouping.Separators(ungrouped).Any(), "no input grouping in " + ungrouped);
             Check(!InputGrouping.Separators("max(10,20)").Any(), "argument separators are untouched");
             Check(InputGrouping.Separators("max(10000,20000)").Count() == 2, "large function arguments are grouped independently");
+            string display = InputGrouping.Display("max(10000,20000)+1234567.89");
+            Check(display == "max(10\u201a000,20\u201a000)+1\u201a234\u201a567.89", "group marks occupy their own characters");
+            Check(InputGrouping.Plain(display) == "max(10000,20000)+1234567.89", "input display round trip");
+            MathTest(display, 1254567.89);
+            Check(InputGrouping.Display(display) == display, "input grouping is idempotent");
             Check(InputGrouping.Separators("a=123456 # 123456").Count() == 1, "trailing comments are untouched");
             MathTest("2^3^2", 512); MathTest("-2^2", -4); MathTest("(-2)^2", 4); MathTest("2^-3", .125);
             MathTest("2**3", 8); MathTest("4! + 1", 25); MathTest("0!", 1); MathTest("3!!", 720);
