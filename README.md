@@ -42,10 +42,12 @@ Names ignore case, start with a letter or `_`, and can contain letters, digits a
 ![VarPad calculating materials, labour and contingency for a workshop estimate](docs/screenshots/estimates.png)
 
 - **Answers where you write.** Live results appear inline, with no separate answer column. Click a generated answer to copy it.
+- **Readable large numbers.** Inputs, answers and variable values automatically show thousands separators, such as `123,456,789`. Input commas are visual only, so typing, cursor movement, undo and saved formulas work as before. Type numbers without grouping commas; typed commas still separate function arguments. Copied numbers omit visual grouping so they paste safely into formulas.
 - **A small desktop companion.** Compact toolbar, always on top, 6-pixel scrollbars and adjustable text size.
 - **Your preferred look.** Green text on charcoal by default; dark, light, amber and blue themes. Adjust background opacity while keeping text opaque.
 - **Notes that stay.** Multiple windows, local autosave, backup recovery, rename, duplicate, delete, import and export.
 - **Wrap long lines.** Choose **⋯ → Wrap text** to fit text to the window. This preference saves per note. Calculations stay on one logical line, with answers at the end.
+- **Complete names with Tab.** Start typing a variable, constant or function, use Up/Down to choose a suggestion, then press Tab. Functions insert parentheses with the cursor inside. Ctrl+Space opens suggestions; Esc dismisses them. Enter still starts a new line. With no match, Tab keeps its normal indentation behaviour.
 - **Start fresh quickly.** Type `cls` or `clear` on its own line and press Enter. Ctrl+Z restores the cleared note.
 - **Useful maths built in.** Powers, roots, factorials, rounding, logs, trigonometry, aggregates, bitwise operators and binary/hexadecimal numbers.
 
@@ -65,6 +67,8 @@ For a standalone copy, extract **VarPad-Portable.zip** and run **VarPad.exe**. K
 
 | Shortcut | Action |
 | --- | --- |
+| Tab / Up / Down | Complete a name / choose a suggestion |
+| Ctrl+Space / Esc | Show / dismiss suggestions |
 | Ctrl+N | New note |
 | Ctrl+O / Ctrl+S | Import / export text |
 | Ctrl+Shift+C | Copy the current line's result |

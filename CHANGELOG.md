@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.2 — Input number grouping
+
+- Show automatic grouping commas in decimal inputs as you type, including variable assignments and function arguments.
+- Commas are visual adornments: formulas, saved notes, clipboard text, cursor positions and undo history stay unchanged.
+- Keep comments, quoted variable names, fractional digits, hexadecimal/binary numbers and scientific notation unchanged.
+- Includes grouped answers and variable/function Tab completion.
+
+## 1.4.1 — Readable large numbers
+
+- Automatically group displayed answers and variable values with commas: `123,456,789`.
+- Preserve decimal digits, scientific notation and calculation precision.
+- Copy results without grouping so they remain valid in formulas and function arguments.
+- Includes variable and function autocomplete from 1.4.0: Tab to accept, Up/Down to choose, Ctrl+Space to show suggestions.
+
+## 1.4.0 — Tab completion
+
+- Suggest variable names, constants and calculator functions as you type.
+- Press Tab to accept, Up/Down to choose, Ctrl+Space to show suggestions, or Esc to dismiss.
+- Functions add parentheses and place the cursor inside; existing arguments are preserved.
+- Suggestions respect note scope, both variable syntaxes, comments and quoted names.
+- Completion supports undo and wrapped text. Enter and unmatched Tab retain their normal behaviour.
+
 ## 1.3.0 — Optional text wrapping
 
 - Added Settings → Wrap text, saved independently for each note (off by default).
