@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using VarPad;
 
 internal static class Tests
@@ -22,7 +23,36 @@ internal static class Tests
     {
         try
         {
+            string completionText = "25\"horses\"\nfeed=3\nHOR";
+            CompletionMatch completion = Completion.Find(completionText, completionText.Length, true, false);
+            Check(completion != null && completion.Items[0].Name == "horses", "quoted variables complete case-insensitively");
+            Check(Completion.Find("hor\nhorses=25", 3, true, false) == null, "no forward-reference suggestions");
+            completionText = "horses=25\nhorses=1/0\nhor";
+            Check(Completion.Find(completionText, completionText.Length, true, false) == null, "invalidated variables are not suggested");
+            foreach (string blocked in new[] { "# sq", "2 // sq", "3\"sq", "3\u201csq", "123", "0xff", "" })
+                Check(Completion.Find(blocked, blocked.Length, true, false) == null, "no automatic suggestions in comments, bindings or numbers: " + blocked);
+            Check(Completion.Find("sq=2", 2, true, false) == null, "assignment name is not replaced");
+            completionText = "3\"teabage\"+te";
+            completion = Completion.Find(completionText, completionText.Length, true, false);
+            Check(completion != null && completion.Items[0].Name == "teabage", "same-line quoted binding can complete");
+            completion = Completion.Find("sq", 2, true, false);
+            int completionCaret;
+            Check(Completion.Insertion("sq", completion, completion.Items[0], out completionCaret) == "sqrt()" && completionCaret == 5, "function inserts parentheses and puts caret inside");
+            completion = Completion.Find("sq(25)", 2, true, false);
+            Check(Completion.Insertion("sq(25)", completion, completion.Items[0], out completionCaret) == "sqrt", "existing parentheses are preserved");
+            completion = Completion.Find("horses=25\nhorsez", 13, true, false);
+            Check(completion != null && completion.Length == 6, "middle-of-token completion replaces the whole token");
+            Check(Completion.Find("p", 1, true, false).Items.Any(i => i.Name == "pi"), "constants are suggested");
+            Check(Completion.Find("", 0, true, true).Items.Any(i => i.Name == "sqrt"), "Ctrl+Space can list functions with no prefix");
+            Check(Completion.Find("abs=2\na", 7, true, false).Items.First().Kind == "variable", "variable is offered before same-named function");
             MathTest("2 + 3 * 4", 14); MathTest("(2 + 3) * 4", 20);
+            Check(InputGrouping.Separators("123456789").OrderBy(i => i).SequenceEqual(new[] { 3, 6 }), "input comma positions");
+            Check(InputGrouping.Separators("-1234567.89012").OrderBy(i => i).SequenceEqual(new[] { 2, 5 }), "group integer part only");
+            foreach (string ungrouped in new[] { "123", "0.123456", "1e12345", "12345e6", "0x12345678", "0b10001000", "horse123456", "25\"horse123456\"", "25\u201chorse123456\u201d", "# 123456", "// 123456" })
+                Check(!InputGrouping.Separators(ungrouped).Any(), "no input grouping in " + ungrouped);
+            Check(!InputGrouping.Separators("max(10,20)").Any(), "argument separators are untouched");
+            Check(InputGrouping.Separators("max(10000,20000)").Count() == 2, "large function arguments are grouped independently");
+            Check(InputGrouping.Separators("a=123456 # 123456").Count() == 1, "trailing comments are untouched");
             MathTest("2^3^2", 512); MathTest("-2^2", -4); MathTest("(-2)^2", 4); MathTest("2^-3", .125);
             MathTest("2**3", 8); MathTest("4! + 1", 25); MathTest("0!", 1); MathTest("3!!", 720);
             MathTest("10 - 3 - 2", 5); MathTest("12/3*2", 8); MathTest("12/3/2", 2);
@@ -64,6 +94,14 @@ internal static class Tests
             Check(!sheet.Variables.ContainsKey("a"), "no invalid variable leaked");
             Check(!Calculator.EvaluateSheet("a+v", true).Lines[0].Value.HasValue, "variables scoped to note");
             Check(Calculator.Format(.1 + .2) == "0.3", "clean number display");
+            Check(Calculator.Format(123456789) == "123,456,789", "automatic thousands separators");
+            Check(Calculator.Format(-1234567.875) == "-1,234,567.875", "negative decimal grouping");
+            Check(Calculator.Format(999) == "999" && Calculator.Format(1000) == "1,000", "grouping boundary");
+            Check(Calculator.Format(0.123456789) == "0.123456789", "fractional digits stay ungrouped");
+            Check(Calculator.Format(1e20) == "1E+20" && Calculator.Format(1e-20) == "1E-20", "scientific notation is preserved");
+            Check(Calculator.FormatInput(123456789) == "123456789", "clipboard output remains valid input");
+            MathTest("sum(" + Calculator.FormatInput(1234567) + ",2)", 1234569);
+            Check(InlineAnswer.Suffix(Calculator.EvaluateSheet("123456789+1=", true).Lines[0]).Contains("123,456,790"), "inline answers use grouping");
             Check(Calculator.EvaluateSheet("?", true).Lines[0].IsMemo, "help marker is memo");
             CultureInfoTest();
             InlineTests();
@@ -81,6 +119,7 @@ internal static class Tests
         {
             System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
             MathTest("1.5+2.25", 3.75); Check(Calculator.Format(3.75) == "3.75", "stable formatting across cultures");
+            Check(Calculator.Format(1234567.5) == "1,234,567.5", "grouping is stable across cultures");
         }
         finally { System.Threading.Thread.CurrentThread.CurrentCulture = old; }
     }

@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -37,7 +38,65 @@ internal static class LayoutChecks
             view.Window.ShowActivated = false; view.Window.ShowInTaskbar = false; view.Window.Opacity = 0;
             view.Window.Show(); Pump();
             TextBox editor = (TextBox)view.Window.FindName("Editor");
+            editor.Text = "25\"horses\"\nhor"; editor.CaretIndex = editor.Text.Length;
+            Check(view.HandleCompletionKey(Key.Tab, ModifierKeys.None), "Tab completes before the calculation timer fires");
+            Check(editor.Text == "25\"horses\"\nhorses", "Tab inserts the quoted variable name");
+            editor.Undo(); Check(editor.Text == "25\"horses\"\nhor", "Completion is a single undoable edit");
+            editor.Text = "sq"; editor.CaretIndex = 2;
+            Check(view.HandleCompletionKey(Key.Tab, ModifierKeys.None), "Tab completes function");
+            Check(editor.Text == "sqrt()" && editor.CaretIndex == 5, "Function completion places caret inside brackets");
+            editor.Text = "sq(25)"; editor.CaretIndex = 2;
+            view.HandleCompletionKey(Key.Tab, ModifierKeys.None);
+            Check(editor.Text == "sqrt(25)", "Function completion keeps existing arguments");
+            editor.Text = "horses=25\nhorseshoe=2\nhor"; editor.CaretIndex = editor.Text.Length;
+            Check(view.ShowCompletion(false), "Multiple suggestions open");
+            Pump();
+            Check(view.HandleCompletionKey(Key.Down, ModifierKeys.None), "Down selects next suggestion");
+            if (args.Length > 1)
+            {
+                Border popup = (Border)typeof(NoteWindow).GetField("completionBorder", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+                Check(popup.ActualWidth > 200 && popup.ActualHeight > 35, "Suggestion popup lays out its rows");
+                popup.Opacity = 1;
+                RenderTargetBitmap preview = new RenderTargetBitmap((int)Math.Ceiling(popup.ActualWidth), (int)Math.Ceiling(popup.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                preview.Render(popup); popup.Opacity = 0;
+                PngBitmapEncoder encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(preview));
+                using (FileStream image = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "completion-preview.png"))) encoder.Save(image);
+            }
+            view.HandleCompletionKey(Key.Tab, ModifierKeys.None);
+            Check(editor.Text.EndsWith("\nhorseshoe"), "Tab accepts selected suggestion");
+            editor.Text = "sq"; editor.CaretIndex = 2; view.ShowCompletion(false);
+            Check(view.HandleCompletionKey(Key.Escape, ModifierKeys.None) && !view.AcceptCompletion() && editor.Text == "sq", "Escape dismisses without editing");
+            view.ShowCompletion(false);
+            Check(!view.HandleCompletionKey(Key.Return, ModifierKeys.None) && !view.AcceptCompletion(), "Enter keeps normal newline behaviour");
+            editor.Text = "# sq"; editor.CaretIndex = editor.Text.Length;
+            Check(!view.HandleCompletionKey(Key.Tab, ModifierKeys.None), "Tab retains indentation when no completion exists");
+            editor.Text = "sq"; editor.SelectAll();
+            Check(!view.HandleCompletionKey(Key.Tab, ModifierKeys.None), "Tab does not autocomplete selected text");
+            view.ToggleWrap(); editor.Text = "sq"; editor.CaretIndex = 2;
+            view.HandleCompletionKey(Key.Tab, ModifierKeys.None);
+            Check(editor.Text == "sqrt()", "Completion works with wrapping enabled");
+            view.ToggleWrap();
+            editor.Text = "a=3\nv=2\na+v=\na+v"; Pump();
             Canvas answers = (Canvas)view.Window.FindName("Results");
+            Canvas commas = (Canvas)view.Window.FindName("InputCommas");
+            string groupedInput = "horses=123456789\nfeed=12345.67\nmax(10000,20000)=\n# 123456 is a note\n3\"herd123456\"\nhorses+feed=";
+            editor.Text = groupedInput; editor.CaretIndex = 9; Pump();
+            Check(commas.Children.Count == 5, "Input displays five grouping commas without changing comments or quoted names");
+            Check(editor.Text == groupedInput && editor.CaretIndex == 9, "Input grouping preserves source text and caret");
+            Check(answers.Children.OfType<TextBlock>().Any(t => t.Text == " 20,000"), "Function argument commas retain their calculation meaning");
+            if (args.Length > 1)
+            {
+                FrameworkElement shell = (FrameworkElement)view.Window.Content;
+                RenderTargetBitmap preview = new RenderTargetBitmap((int)shell.ActualWidth, (int)shell.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                preview.Render(shell);
+                PngBitmapEncoder encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(preview));
+                using (FileStream image = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "input-grouping-preview.png"))) encoder.Save(image);
+            }
+            editor.Select(9, 0); editor.SelectedText = "0"; Pump();
+            editor.Undo(); Pump(); Check(editor.Text == groupedInput, "Input grouping does not add undo operations");
+            view.ToggleWrap(); Pump();
+            Check(commas.Children.Count == 5 && editor.Text == groupedInput, "Input grouping works with wrapping");
+            view.ToggleWrap(); editor.Text = "a=3\nv=2\na+v=\na+v"; Pump();
             TextBlock answer = answers.Children.OfType<TextBlock>().First(t => t.Text == " 5");
             int end = editor.GetCharacterIndexFromLineIndex(2) + 4;
             Rect rect = editor.GetRectFromCharacterIndex(end);
